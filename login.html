@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Masuk — Quality Assurance System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="login-card">
+    <div class="logo-box"><img src="assets/logo.png" alt="Logo"></div>
+    <h1>Quality Assurance System</h1>
+    <p class="sub">Masuk untuk mengakses Dashboard, Complaint &amp; Report QC</p>
+
+    <div class="login-error" id="loginError"></div>
+
+    <form class="login-form" id="loginForm">
+      <div class="field">
+        <label>Email</label>
+        <input type="text" id="email" placeholder="nama@perusahaan.com" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn-primary btn-block" id="loginBtn">
+        Masuk
+      </button>
+    </form>
+
+    <p style="margin-top:18px;font-size:11.5px;color:var(--ink-500);">
+      Akun dibuat oleh admin lewat Supabase Auth. Hubungi admin QA jika belum punya akses.
+    </p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="js/config.js"></script>
+<script>
+  (async () => {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) window.location.href = 'index.html';
+  })();
+
+  const form = document.getElementById('loginForm');
+  const errBox = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    errBox.style.display = 'none';
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>';
+
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      errBox.textContent = 'Email atau password salah. Silakan coba lagi.';
+      errBox.style.display = 'block';
+      btn.disabled = false;
+      btn.innerHTML = 'Masuk';
+    } else {
+      window.location.href = 'index.html';
+    }
+  });
+</script>
+</body>
+</html>

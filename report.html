@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Report QC — Quality Assurance System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <div id="sidebar-root"></div>
+
+  <div class="main-col">
+    <div id="topbar-root"></div>
+
+    <main class="content">
+      <div class="page-head">
+        <div>
+          <h1>Report QC</h1>
+          <p>Dokumentasi hasil inspeksi Quality Control harian.</p>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button class="btn btn-secondary" id="exportExcelBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export Excel
+          </button>
+          <button class="btn btn-primary" id="newReportBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            Report Baru
+          </button>
+        </div>
+      </div>
+
+      <div class="card card-pad" style="margin-bottom:16px;">
+        <div class="filters-bar">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="searchInput" placeholder="Cari no. report / parameter...">
+          </div>
+          <select id="filterHasil">
+            <option value="">Semua Hasil</option>
+            <option>Pass</option>
+            <option>Fail</option>
+          </select>
+          <select id="filterArea">
+            <option value="">Semua Area</option>
+          </select>
+        </div>
+
+        <div class="table-wrap">
+          <table class="data-table" id="reportTable">
+            <thead>
+              <tr>
+                <th>No. Report</th><th>Tanggal</th><th>Area / Mesin</th>
+                <th>Parameter</th><th>Hasil</th><th>Inspector</th><th>Foto</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="8" class="page-loader"><span class="spinner"></span>Memuat data...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- MODAL: FORM REPORT -->
+<div class="modal-backdrop" id="formModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="formModalTitle">Report QC Baru</h3>
+      <button class="modal-close" onclick="closeModal('formModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="reportForm">
+        <input type="hidden" id="reportId">
+        <div class="form-grid">
+          <div class="field">
+            <label>Tanggal <span class="req">*</span></label>
+            <input type="date" id="fTanggal" required>
+          </div>
+          <div class="field">
+            <label>Shift</label>
+            <select id="fShift">
+              <option value="">-- Pilih Shift --</option>
+              <option>Shift 1</option>
+              <option>Shift 2</option>
+              <option>Shift 3</option>
+              <option>Non-Shift</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Area <span class="req">*</span></label>
+            <select id="fArea" required></select>
+          </div>
+          <div class="field">
+            <label>Mesin</label>
+            <select id="fMesin"></select>
+          </div>
+          <div class="field">
+            <label>Equipment</label>
+            <select id="fEquipment"></select>
+          </div>
+          <div class="field">
+            <label>Inspector (Karyawan)</label>
+            <select id="fKaryawan">
+              <option value="">-- Pilih Karyawan --</option>
+            </select>
+          </div>
+          <div class="field full">
+            <label>Parameter QC <span class="req">*</span></label>
+            <input type="text" id="fParameter" placeholder="mis. Berat bersih, Suhu produk, Seal integrity..." required>
+          </div>
+          <div class="field">
+            <label>Standar / Acuan</label>
+            <input type="text" id="fStandar" placeholder="mis. 250g ± 3g">
+          </div>
+          <div class="field">
+            <label>Hasil Aktual</label>
+            <input type="text" id="fHasilAktual" placeholder="mis. 251g">
+          </div>
+          <div class="field full">
+            <label>Hasil Pemeriksaan <span class="req">*</span></label>
+            <div class="radio-row" id="hasilChips">
+              <label class="radio-chip sel-pass" data-val="Pass"><input type="radio" name="hasil" value="Pass" checked>Pass</label>
+              <label class="radio-chip" data-val="Fail"><input type="radio" name="hasil" value="Fail">Fail</label>
+            </div>
+          </div>
+          <div class="field full">
+            <label>Catatan</label>
+            <textarea id="fCatatan" placeholder="Catatan tambahan hasil inspeksi..."></textarea>
+          </div>
+          <div class="field full">
+            <label>Foto Bukti</label>
+            <div class="photo-drop" id="photoDrop">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg>
+              <div>Klik untuk unggah foto (JPG/PNG, maks 5MB)</div>
+            </div>
+            <input type="file" id="photoInput" accept="image/*" class="hidden">
+            <div class="photo-preview-wrap" id="photoPreviewWrap"></div>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('formModal')">Batal</button>
+      <button class="btn btn-primary" id="saveReportBtn">Simpan Report</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DETAIL -->
+<div class="modal-backdrop" id="detailModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Detail Report QC</h3>
+      <button class="modal-close" onclick="closeModal('detailModal')">&times;</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-danger" id="deleteReportBtn">Hapus</button>
+      <button class="btn btn-secondary" onclick="closeModal('detailModal')">Tutup</button>
+      <button class="btn btn-primary" id="editReportBtn">Edit</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/report.js"></script>
+</body>
+</html>

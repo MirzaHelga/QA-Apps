@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Quality Assurance System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <div id="sidebar-root"></div>
+
+  <div class="main-col">
+    <div id="topbar-root"></div>
+
+    <main class="content">
+      <div class="page-head">
+        <div>
+          <h1>Dashboard</h1>
+          <p>Ringkasan performa Quality Assurance secara real-time.</p>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <a href="complaint.html" class="btn btn-secondary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            Complaint Baru
+          </a>
+          <a href="report.html" class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            Report QC Baru
+          </a>
+        </div>
+      </div>
+
+      <!-- STAT CARDS -->
+      <div class="stat-grid" id="statGrid">
+        <div class="stat-card">
+          <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg></div>
+          <div class="stat-label">Total Complaint</div>
+          <div class="stat-value" id="statTotalComplaint">–</div>
+          <span class="stat-delta" id="statComplaintDelta"></span>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg></div>
+          <div class="stat-label">Complaint Open</div>
+          <div class="stat-value" id="statOpenComplaint">–</div>
+          <span class="stat-delta" id="statOpenDelta"></span>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></div>
+          <div class="stat-label">Total Report QC</div>
+          <div class="stat-value" id="statTotalQc">–</div>
+          <span class="stat-delta" id="statQcDelta"></span>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+          <div class="stat-label">QC Pass Rate (30 hari)</div>
+          <div class="stat-value" id="statPassRate">–</div>
+          <span class="stat-delta" id="statPassDelta"></span>
+        </div>
+      </div>
+
+      <!-- CHARTS -->
+      <div class="grid-2">
+        <div class="card card-pad">
+          <div class="section-title">Trend Complaint vs Report QC (14 hari terakhir)</div>
+          <div class="chart-box"><canvas id="trendChart"></canvas></div>
+        </div>
+        <div class="card card-pad">
+          <div class="section-title">Status Complaint</div>
+          <div class="chart-box"><canvas id="statusChart"></canvas></div>
+          <div class="legend-list" id="statusLegend"></div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-top:16px;">
+        <div class="card card-pad">
+          <div class="section-title">Complaint per Area</div>
+          <div class="chart-box"><canvas id="areaChart"></canvas></div>
+        </div>
+        <div class="card card-pad">
+          <div class="section-title">Hasil QC (Pass vs Fail)</div>
+          <div class="chart-box"><canvas id="qcResultChart"></canvas></div>
+          <div class="legend-list" id="qcLegend"></div>
+        </div>
+      </div>
+
+      <!-- RECENT TABLES -->
+      <div class="grid-2" style="margin-top:16px; align-items:start;">
+        <div class="card card-pad">
+          <div class="section-title">
+            Complaint Terbaru
+            <a href="complaint.html" class="btn btn-ghost btn-sm">Lihat semua</a>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table" id="recentComplaintTable">
+              <thead>
+                <tr><th>No</th><th>Tanggal</th><th>Area</th><th>Severity</th><th>Status</th></tr>
+              </thead>
+              <tbody><tr><td colspan="5" class="page-loader"><span class="spinner"></span>Memuat data...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="card card-pad">
+          <div class="section-title">
+            Report QC Terbaru
+            <a href="report.html" class="btn btn-ghost btn-sm">Lihat semua</a>
+          </div>
+          <div class="table-wrap">
+            <table class="data-table" id="recentQcTable">
+              <thead>
+                <tr><th>No</th><th>Tanggal</th><th>Area</th><th>Parameter</th><th>Hasil</th></tr>
+              </thead>
+              <tbody><tr><td colspan="5" class="page-loader"><span class="spinner"></span>Memuat data...</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/dashboard.js"></script>
+</body>
+</html>
