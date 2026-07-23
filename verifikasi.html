@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verifikasi Quality — Quality Assurance System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <div id="sidebar-root"></div>
+
+  <div class="main-col">
+    <div id="topbar-root"></div>
+
+    <main class="content">
+      <div class="page-head">
+        <div>
+          <h1>Verifikasi Quality</h1>
+          <p>Checklist verifikasi After CIP dan Start Up sebelum produksi berjalan.</p>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button class="btn btn-secondary" id="exportExcelBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Export Excel
+          </button>
+          <button class="btn btn-primary" id="newVqBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            Verifikasi Baru
+          </button>
+        </div>
+      </div>
+
+      <div class="pill-tabs" id="vqTabs">
+        <button class="pill-tab active" data-tipe="After CIP">Proses After CIP</button>
+        <button class="pill-tab" data-tipe="Start Up">Proses Start Up</button>
+      </div>
+
+      <div class="card card-pad" style="margin-bottom:16px;">
+        <div class="filters-bar">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="searchInput" placeholder="Cari no. verifikasi / line / FLM / QA...">
+          </div>
+          <select id="filterShift">
+            <option value="">Semua Shift</option>
+            <option>1</option>
+            <option>2</option>
+            <option>3</option>
+          </select>
+          <select id="filterStatus">
+            <option value="">Semua Status</option>
+            <option value="Sesuai">Sesuai</option>
+            <option value="Perlu Tindakan">Perlu Tindakan</option>
+          </select>
+        </div>
+
+        <div class="table-wrap">
+          <table class="data-table" id="vqTable">
+            <thead>
+              <tr>
+                <th>No. Verifikasi</th><th>Tanggal</th><th>Shift</th><th>Line</th>
+                <th>FLM</th><th>QA</th><th>Status</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="8" class="page-loader"><span class="spinner"></span>Memuat data...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- MODAL: FORM VERIFIKASI -->
+<div class="modal-backdrop" id="formModal">
+  <div class="modal" style="max-width:820px;">
+    <div class="modal-head">
+      <h3 id="formModalTitle">Verifikasi Quality Baru</h3>
+      <button class="modal-close" onclick="closeModal('formModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="vqForm">
+        <input type="hidden" id="vqId">
+        <div class="form-grid">
+          <div class="field full">
+            <label>Jenis Verifikasi <span class="req">*</span></label>
+            <div class="radio-row" id="tipeChips">
+              <label class="radio-chip sel-pass" data-val="After CIP"><input type="radio" name="tipe" value="After CIP" checked>Proses After CIP</label>
+              <label class="radio-chip" data-val="Start Up"><input type="radio" name="tipe" value="Start Up">Proses Start Up</label>
+            </div>
+          </div>
+          <div class="field">
+            <label>Tanggal <span class="req">*</span></label>
+            <input type="date" id="fTanggal" required>
+          </div>
+          <div class="field">
+            <label>Shift</label>
+            <select id="fShift">
+              <option value="">-- Pilih Shift --</option>
+              <option value="1">Shift 1</option>
+              <option value="2">Shift 2</option>
+              <option value="3">Shift 3</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Line</label>
+            <input type="text" id="fLine" placeholder="mis. Line 1 / Line 1,2,3,4,5">
+          </div>
+          <div class="field" style="justify-content:flex-end;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+              <input type="checkbox" id="fPerLine" style="width:16px; height:16px;">
+              Verifikasi per-line
+            </label>
+          </div>
+          <div class="field">
+            <label>FLM (Nama/TTD)</label>
+            <select id="fFlm"><option value="">-- Pilih Karyawan --</option></select>
+          </div>
+          <div class="field">
+            <label>QA (Nama/TTD)</label>
+            <select id="fQa"><option value="">-- Pilih Karyawan --</option></select>
+          </div>
+        </div>
+
+        <div class="section-title" style="margin-top:20px;">Checklist Pengecekan</div>
+        <div class="check-table-wrap">
+          <table class="check-table">
+            <thead>
+              <tr>
+                <th class="no-col">No</th>
+                <th>Pengecekan</th>
+                <th class="std-col">Standard</th>
+                <th class="hasil-col">Hasil Pengecekan</th>
+                <th class="status-col">Status</th>
+              </tr>
+            </thead>
+            <tbody id="checklistBody"></tbody>
+          </table>
+        </div>
+
+        <div class="form-grid" style="margin-top:18px;">
+          <div class="field full">
+            <label>Catatan Tambahan</label>
+            <textarea id="fCatatan" placeholder="Catatan umum hasil verifikasi (opsional)..."></textarea>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('formModal')">Batal</button>
+      <button class="btn btn-primary" id="saveVqBtn">Simpan Verifikasi</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DETAIL -->
+<div class="modal-backdrop" id="detailModal">
+  <div class="modal" style="max-width:820px;">
+    <div class="modal-head">
+      <h3 id="detailModalTitle">Detail Verifikasi Quality</h3>
+      <button class="modal-close" onclick="closeModal('detailModal')">&times;</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-danger" id="deleteVqBtn">Hapus</button>
+      <button class="btn btn-secondary" onclick="closeModal('detailModal')">Tutup</button>
+      <button class="btn btn-primary" id="editVqBtn">Edit</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/verifikasi.js"></script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 # QA Quality System
 
-Aplikasi web Quality Assurance — **Dashboard**, **Complaint**, dan **Report QC** —
+Aplikasi web Quality Assurance — **Dashboard**, **Complaint**, **Report QC**, dan **Verifikasi Quality** —
 dibangun dengan **HTML + JavaScript murni (vanilla)** dan **Supabase (Postgres + Auth + Storage)** sebagai backend.
 
 Tema warna: **White + Teal** (modern), lengkap dengan sidebar hamburger dan logo kosongan yang bisa kamu ganti sendiri.
@@ -14,6 +14,7 @@ qa-app/
 ├── index.html          # Halaman Dashboard
 ├── complaint.html       # Halaman Complaint
 ├── report.html          # Halaman Report QC
+├── verifikasi.html       # Halaman Verifikasi Quality (After CIP & Start Up)
 ├── login.html            # Halaman login (Supabase Auth)
 ├── css/
 │   └── style.css        # Tema White + Teal
@@ -23,13 +24,15 @@ qa-app/
 │   ├── layout.js          # Sidebar + topbar (hamburger)
 │   ├── dashboard.js
 │   ├── complaint.js
-│   └── report.js
+│   ├── report.js
+│   └── verifikasi.js      # Logic checklist Verifikasi Quality
 ├── assets/
 │   └── logo-placeholder.svg   # Logo kosongan, tinggal ganti
 └── supabase/
     ├── 01_schema.sql              # Struktur tabel, RLS, storage bucket
-    └── 02_seed_master_data.sql    # Data master Area/Mesin/Equipment/Karyawan
-                                     # (auto-generated dari Karyawan.xlsx & Mesin.xlsx kamu)
+    ├── 02_seed_master_data.sql    # Data master Area/Mesin/Equipment/Karyawan
+    │                               # (auto-generated dari Karyawan.xlsx & Mesin.xlsx kamu)
+    └── 04_verifikasi_quality.sql  # Tabel verifikasi_quality (checklist After CIP & Start Up)
 ```
 
 ---
@@ -44,8 +47,9 @@ qa-app/
 3. Jalankan `supabase/02_seed_master_data.sql` — ini akan mengisi:
    - **9 Area**, **103 kombinasi Area-Mesin**, **586 kombinasi Mesin-Equipment** (dari `Mesin.xlsx`)
    - **223 data Karyawan** (dari `Karyawan.xlsx`) — NIK, Nama, Departemen, Status, Gender, Grup (L1/L2/L3), Role
-4. Buka **Authentication > Users**, klik **Add user** untuk membuat akun login QA (email + password). RLS dibuat agar hanya user yang login (authenticated) yang bisa menambah/mengubah data — data tetap bisa dibaca publik (silakan perketat sesuai kebutuhan).
-5. Pastikan bucket **qa-photos** muncul di menu **Storage** (dibuat otomatis oleh schema). Kalau tidak muncul, buat manual: nama `qa-photos`, set **Public bucket** = ON.
+4. Jalankan `supabase/04_verifikasi_quality.sql` — ini membuat tabel `verifikasi_quality` untuk halaman **Verifikasi Quality** (checklist Proses After CIP & Proses Start Up, diambil dari file `01_LAPORAN - Verifikasi Quality.xlsx`).
+5. Buka **Authentication > Users**, klik **Add user** untuk membuat akun login QA (email + password). RLS dibuat agar hanya user yang login (authenticated) yang bisa menambah/mengubah data — data tetap bisa dibaca publik (silakan perketat sesuai kebutuhan).
+6. Pastikan bucket **qa-photos** muncul di menu **Storage** (dibuat otomatis oleh schema). Kalau tidak muncul, buat manual: nama `qa-photos`, set **Public bucket** = ON.
 
 ---
 
@@ -89,6 +93,13 @@ Karena ini murni HTML/JS statis, kamu tinggal:
 - Tambah/edit/hapus report QC dengan: tanggal, shift, Area → Mesin → Equipment, inspector, parameter QC, standar/acuan, hasil aktual, hasil (Pass/Fail), catatan, dan **upload foto**
 - Filter berdasarkan hasil, area, dan pencarian teks
 - Nomor report otomatis (format `QC-2026-0001`, dst)
+
+**Verifikasi Quality**
+- Dua tab: **Proses After CIP** (20 item pengecekan) dan **Proses Start Up** (7 item pengecekan), sesuai template Excel `01_LAPORAN - Verifikasi Quality.xlsx`
+- Setiap verifikasi berisi: tanggal, shift, line, opsi per-line, checklist Pengecekan vs Standard (baku, tidak bisa diubah) dengan input Hasil Pengecekan + status **OK / NOK** per item, konfirmasi FLM & QA (dari master karyawan)
+- Status keseluruhan otomatis: **Sesuai** (semua item OK) atau **Perlu Tindakan** (ada item NOK)
+- Filter berdasarkan shift, status, dan pencarian teks; export ke Excel (per baris = per item checklist)
+- Nomor verifikasi otomatis (format `VQ-2026-0001`, dst)
 
 **Umum**
 - Sidebar dengan tombol **hamburger** (collapsible, responsive untuk mobile)
