@@ -16,7 +16,7 @@
   <div class="main-col">
     <div id="topbar-root"></div>
 
-    <main class="content">
+    <main class="content" id="content-root">
       <div class="page-head">
         <div>
           <h1>Verifikasi Quality</h1>
@@ -76,6 +76,7 @@
   </div>
 </div>
 
+<div id="modals-root">
 <!-- MODAL: FORM VERIFIKASI -->
 <div class="modal-backdrop" id="formModal">
   <div class="modal" style="max-width:820px;">
@@ -173,12 +174,14 @@
     </div>
   </div>
 </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="js/config.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/layout.js"></script>
-<script src="js/verifikasi.js"></script>
+<script src="js/router.js"></script>
 </body>
 </html>

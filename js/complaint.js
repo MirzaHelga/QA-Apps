@@ -1,42 +1,46 @@
 /* =========================================================
    COMPLAINT PAGE LOGIC
+   Dibungkus IIFE supaya variabel/fungsinya tidak bentrok dengan
+   controller halaman lain di sesi SPA yang sama.
 ========================================================= */
+(function () {
 
-let master = null;
 let allComplaints = [];
 let selectedPhotoFile = null;
 let currentDetailId = null;
 
-(async function init() {
+window.PageControllers = window.PageControllers || {};
+window.PageControllers.complaint = async function initComplaintPage() {
   const session = await requireAuth();
   if (!session) return;
 
-  renderShell({ active: 'complaint', title: 'Complaint', breadcrumb: 'Quality Assurance System / Complaint' });
+  selectedPhotoFile = null;
+  currentDetailId = null;
 
-  master = await loadMasterData();
-  populateFilters();
   wireForm();
   wireFilters();
+  wireStaticButtons();
   await refreshComplaints();
 
   document.getElementById('newComplaintBtn').addEventListener('click', () => openForm(null));
   document.getElementById('exportExcelBtn').addEventListener('click', exportComplaints);
-})();
+};
 
-function populateFilters() {
-  const areaSel = document.getElementById('filterArea');
-  areaSel.innerHTML = '<option value="">Semua Area</option>' +
-    master.areas.map(a => `<option value="${a.id}">${escapeHtml(a.nama)}</option>`).join('');
+function wireStaticButtons() {
+  document.getElementById('editComplaintBtn').addEventListener('click', () => {
+    const c = allComplaints.find(x => x.id === currentDetailId);
+    closeModal('detailModal');
+    openForm(c);
+  });
 
-  const karyawanSel = document.getElementById('fKaryawan');
-  karyawanSel.innerHTML = '<option value="">-- Pilih Karyawan --</option>' +
-    master.karyawan.map(k => `<option value="${k.id}">${escapeHtml(k.nama)} (${escapeHtml(k.nik)})</option>`).join('');
-
-  wireCascadingSelects({
-    areaSel: document.getElementById('fArea'),
-    mesinSel: document.getElementById('fMesin'),
-    equipSel: document.getElementById('fEquipment'),
-    master,
+  document.getElementById('deleteComplaintBtn').addEventListener('click', async () => {
+    if (!currentDetailId) return;
+    if (!confirm('Hapus complaint ini? Tindakan tidak dapat dibatalkan.')) return;
+    const { error } = await supabaseClient.from('complaints').delete().eq('id', currentDetailId);
+    if (error) { toast('Gagal menghapus: ' + error.message, 'error'); return; }
+    toast('Complaint berhasil dihapus', 'success');
+    closeModal('detailModal');
+    await refreshComplaints();
   });
 }
 
@@ -44,13 +48,13 @@ function wireFilters() {
   document.getElementById('searchInput').addEventListener('input', renderTable);
   document.getElementById('filterStatus').addEventListener('change', renderTable);
   document.getElementById('filterSeverity').addEventListener('change', renderTable);
-  document.getElementById('filterArea').addEventListener('change', renderTable);
+  document.getElementById('filterSumber').addEventListener('change', renderTable);
 }
 
 async function refreshComplaints() {
   const { data, error } = await supabaseClient
     .from('complaints')
-    .select('*, master_area(nama), master_mesin(nama), master_equipment(nama), master_karyawan(nama)')
+    .select('*')
     .order('created_at', { ascending: false });
   if (error) { toast('Gagal memuat data: ' + error.message, 'error'); return; }
   allComplaints = data || [];
@@ -71,7 +75,7 @@ function renderTable() {
 
   const tbody = document.querySelector('#complaintTable tbody');
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state">
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
       <div class="t">Belum ada complaint</div>
       <div class="s">Klik "Complaint Baru" untuk menambahkan data</div>
@@ -83,12 +87,14 @@ function renderTable() {
     <tr>
       <td><strong>${escapeHtml(c.complaint_no)}</strong></td>
       <td>${formatDate(c.tanggal)}</td>
-      <td>${escapeHtml(c.master_area?.nama || '-')}${c.master_mesin ? ' / ' + escapeHtml(c.master_mesin.nama) : ''}</td>
+      <td>${escapeHtml(c.produk_nama || '-')}${c.kode_batch ? '<br><span style="color:#8a9793; font-size:11.5px;">Batch: ' + escapeHtml(c.kode_batch) + '</span>' : ''}</td>
+      <td>${escapeHtml(c.pelapor_nama || '-')}${c.pelapor_asal ? '<br><span style="color:#8a9793; font-size:11.5px;">' + escapeHtml(c.pelapor_asal) + '</span>' : ''}</td>
+      <td>${escapeHtml(c.sumber_complaint || '-')}</td>
       <td>${escapeHtml(c.kategori || '-')}</td>
       <td>${severityBadge(c.severity)}</td>
       <td>${statusBadge(c.status)}</td>
       <td>${c.photo_url ? `<img src="${c.photo_url}" class="thumb-btn" onclick="event.stopPropagation(); window.open('${c.photo_url}','_blank')">` : `<div class="thumb-empty">–</div>`}</td>
-      <td><button class="btn btn-ghost btn-sm" onclick="viewDetail('${c.id}')">Detail</button></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="ComplaintPage.viewDetail('${c.id}')">Detail</button></td>
     </tr>
   `).join('');
 }
@@ -97,14 +103,14 @@ function getFilteredComplaints() {
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
   const fStatus = document.getElementById('filterStatus').value;
   const fSeverity = document.getElementById('filterSeverity').value;
-  const fArea = document.getElementById('filterArea').value;
+  const fSumber = document.getElementById('filterSumber').value;
 
   return allComplaints.filter(c => {
     if (fStatus && c.status !== fStatus) return false;
     if (fSeverity && c.severity !== fSeverity) return false;
-    if (fArea && c.area_id !== fArea) return false;
+    if (fSumber && c.sumber_complaint !== fSumber) return false;
     if (q) {
-      const hay = `${c.complaint_no} ${c.deskripsi}`.toLowerCase();
+      const hay = `${c.complaint_no} ${c.produk_nama} ${c.pelapor_nama} ${c.deskripsi}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -117,14 +123,17 @@ function exportComplaints() {
   const rows = filtered.map(c => ({
     'No. Complaint': c.complaint_no,
     'Tanggal': formatDate(c.tanggal),
-    'Shift': c.shift || '-',
-    'Area': c.master_area?.nama || '-',
-    'Mesin': c.master_mesin?.nama || '-',
-    'Equipment': c.master_equipment?.nama || '-',
+    'Sumber Complaint': c.sumber_complaint || '-',
+    'Nama Produk': c.produk_nama || '-',
+    'Kode Batch': c.kode_batch || '-',
+    'Tgl Produksi': c.tanggal_produksi ? formatDate(c.tanggal_produksi) : '-',
+    'Tgl Kadaluarsa': c.tanggal_kadaluarsa ? formatDate(c.tanggal_kadaluarsa) : '-',
+    'Nama Pelapor': c.pelapor_nama || '-',
+    'Kontak Pelapor': c.pelapor_kontak || '-',
+    'Asal Pelapor': c.pelapor_asal || '-',
     'Kategori': c.kategori || '-',
     'Severity': c.severity,
     'Status': c.status,
-    'Pelapor': c.master_karyawan?.nama || '-',
     'Deskripsi Keluhan': c.deskripsi,
     'Tindakan Perbaikan': c.tindakan_perbaikan || '-',
     'Foto': c.photo_url || '-',
@@ -163,7 +172,7 @@ function renderPhotoPreview(url) {
   wrap.innerHTML = `
     <div class="photo-preview">
       <img src="${url}">
-      <button type="button" class="rm" onclick="removePhoto()">&times;</button>
+      <button type="button" class="rm" onclick="ComplaintPage.removePhoto()">&times;</button>
     </div>
   `;
 }
@@ -178,8 +187,6 @@ function openForm(complaint) {
   document.getElementById('complaintForm').reset();
   document.getElementById('photoPreviewWrap').innerHTML = '';
   selectedPhotoFile = null;
-  document.getElementById('fMesin').innerHTML = '<option value="">-- Pilih Mesin --</option>';
-  document.getElementById('fEquipment').innerHTML = '<option value="">-- Pilih Equipment (opsional) --</option>';
 
   document.querySelectorAll('#severityChips .radio-chip').forEach(c => c.classList.remove('sel-low', 'sel-med', 'sel-high', 'sel-critical'));
   document.querySelector('#severityChips .radio-chip[data-val="Medium"]').classList.add('sel-med');
@@ -188,15 +195,14 @@ function openForm(complaint) {
     document.getElementById('formModalTitle').textContent = 'Edit Complaint';
     document.getElementById('complaintId').value = complaint.id;
     document.getElementById('fTanggal').value = complaint.tanggal;
-    document.getElementById('fShift').value = complaint.shift || '';
-    document.getElementById('fArea').value = complaint.area_id || '';
-    document.getElementById('fArea').dispatchEvent(new Event('change'));
-    setTimeout(() => {
-      document.getElementById('fMesin').value = complaint.mesin_id || '';
-      document.getElementById('fMesin').dispatchEvent(new Event('change'));
-      setTimeout(() => { document.getElementById('fEquipment').value = complaint.equipment_id || ''; }, 30);
-    }, 30);
-    document.getElementById('fKaryawan').value = complaint.pelapor_id || '';
+    document.getElementById('fSumber').value = complaint.sumber_complaint || '';
+    document.getElementById('fProdukNama').value = complaint.produk_nama || '';
+    document.getElementById('fKodeBatch').value = complaint.kode_batch || '';
+    document.getElementById('fTglProduksi').value = complaint.tanggal_produksi || '';
+    document.getElementById('fTglKadaluarsa').value = complaint.tanggal_kadaluarsa || '';
+    document.getElementById('fPelaporNama').value = complaint.pelapor_nama || '';
+    document.getElementById('fPelaporKontak').value = complaint.pelapor_kontak || '';
+    document.getElementById('fPelaporAsal').value = complaint.pelapor_asal || '';
     document.getElementById('fKategori').value = complaint.kategori || '';
     document.getElementById('fStatus').value = complaint.status || 'Open';
     document.getElementById('fDeskripsi').value = complaint.deskripsi || '';
@@ -218,11 +224,13 @@ function openForm(complaint) {
 async function saveComplaint() {
   const id = document.getElementById('complaintId').value;
   const tanggal = document.getElementById('fTanggal').value;
-  const areaId = document.getElementById('fArea').value;
+  const sumber = document.getElementById('fSumber').value;
+  const produkNama = document.getElementById('fProdukNama').value.trim();
+  const pelaporNama = document.getElementById('fPelaporNama').value.trim();
   const deskripsi = document.getElementById('fDeskripsi').value.trim();
   const severityInput = document.querySelector('#severityChips input:checked');
 
-  if (!tanggal || !areaId || !deskripsi || !severityInput) {
+  if (!tanggal || !sumber || !produkNama || !pelaporNama || !deskripsi || !severityInput) {
     toast('Lengkapi field wajib (bertanda *)', 'error');
     return;
   }
@@ -242,11 +250,14 @@ async function saveComplaint() {
 
     const payload = {
       tanggal,
-      shift: document.getElementById('fShift').value || null,
-      area_id: areaId,
-      mesin_id: document.getElementById('fMesin').value || null,
-      equipment_id: document.getElementById('fEquipment').value || null,
-      pelapor_id: document.getElementById('fKaryawan').value || null,
+      sumber_complaint: sumber,
+      produk_nama: produkNama,
+      kode_batch: document.getElementById('fKodeBatch').value.trim() || null,
+      tanggal_produksi: document.getElementById('fTglProduksi').value || null,
+      tanggal_kadaluarsa: document.getElementById('fTglKadaluarsa').value || null,
+      pelapor_nama: pelaporNama,
+      pelapor_kontak: document.getElementById('fPelaporKontak').value.trim() || null,
+      pelapor_asal: document.getElementById('fPelaporAsal').value.trim() || null,
       kategori: document.getElementById('fKategori').value || null,
       severity: severityInput.value,
       deskripsi,
@@ -285,10 +296,14 @@ function viewDetail(id) {
     <div class="detail-grid">
       <div class="detail-item"><div class="k">No. Complaint</div><div class="v">${escapeHtml(c.complaint_no)}</div></div>
       <div class="detail-item"><div class="k">Tanggal</div><div class="v">${formatDate(c.tanggal)}</div></div>
-      <div class="detail-item"><div class="k">Area</div><div class="v">${escapeHtml(c.master_area?.nama || '-')}</div></div>
-      <div class="detail-item"><div class="k">Mesin / Equipment</div><div class="v">${escapeHtml(c.master_mesin?.nama || '-')} ${c.master_equipment ? '/ ' + escapeHtml(c.master_equipment.nama) : ''}</div></div>
-      <div class="detail-item"><div class="k">Shift</div><div class="v">${escapeHtml(c.shift || '-')}</div></div>
-      <div class="detail-item"><div class="k">Pelapor</div><div class="v">${escapeHtml(c.master_karyawan?.nama || '-')}</div></div>
+      <div class="detail-item"><div class="k">Sumber Complaint</div><div class="v">${escapeHtml(c.sumber_complaint || '-')}</div></div>
+      <div class="detail-item"><div class="k">Nama Produk</div><div class="v">${escapeHtml(c.produk_nama || '-')}</div></div>
+      <div class="detail-item"><div class="k">Kode Batch</div><div class="v">${escapeHtml(c.kode_batch || '-')}</div></div>
+      <div class="detail-item"><div class="k">Tgl Produksi</div><div class="v">${c.tanggal_produksi ? formatDate(c.tanggal_produksi) : '-'}</div></div>
+      <div class="detail-item"><div class="k">Tgl Kadaluarsa</div><div class="v">${c.tanggal_kadaluarsa ? formatDate(c.tanggal_kadaluarsa) : '-'}</div></div>
+      <div class="detail-item"><div class="k">Nama Pelapor</div><div class="v">${escapeHtml(c.pelapor_nama || '-')}</div></div>
+      <div class="detail-item"><div class="k">Kontak Pelapor</div><div class="v">${escapeHtml(c.pelapor_kontak || '-')}</div></div>
+      <div class="detail-item"><div class="k">Asal Pelapor</div><div class="v">${escapeHtml(c.pelapor_asal || '-')}</div></div>
       <div class="detail-item"><div class="k">Kategori</div><div class="v">${escapeHtml(c.kategori || '-')}</div></div>
       <div class="detail-item"><div class="k">Severity</div><div class="v">${severityBadge(c.severity)}</div></div>
       <div class="detail-item"><div class="k">Status</div><div class="v">${statusBadge(c.status)}</div></div>
@@ -303,18 +318,6 @@ function viewDetail(id) {
   openModal('detailModal');
 }
 
-document.getElementById('editComplaintBtn').addEventListener('click', () => {
-  const c = allComplaints.find(x => x.id === currentDetailId);
-  closeModal('detailModal');
-  openForm(c);
-});
+window.ComplaintPage = { viewDetail, removePhoto };
 
-document.getElementById('deleteComplaintBtn').addEventListener('click', async () => {
-  if (!currentDetailId) return;
-  if (!confirm('Hapus complaint ini? Tindakan tidak dapat dibatalkan.')) return;
-  const { error } = await supabaseClient.from('complaints').delete().eq('id', currentDetailId);
-  if (error) { toast('Gagal menghapus: ' + error.message, 'error'); return; }
-  toast('Complaint berhasil dihapus', 'success');
-  closeModal('detailModal');
-  await refreshComplaints();
-});
+})();

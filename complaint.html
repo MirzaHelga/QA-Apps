@@ -16,11 +16,11 @@
   <div class="main-col">
     <div id="topbar-root"></div>
 
-    <main class="content">
+    <main class="content" id="content-root">
       <div class="page-head">
         <div>
           <h1>Complaint</h1>
-          <p>Catat dan pantau keluhan kualitas dari area produksi.</p>
+          <p>Catat dan pantau keluhan produk dari pelanggan / konsumen.</p>
         </div>
         <div style="display:flex; gap:10px;">
           <button class="btn btn-secondary" id="exportExcelBtn">
@@ -38,7 +38,7 @@
         <div class="filters-bar">
           <div class="search-box">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <input type="text" id="searchInput" placeholder="Cari no. complaint / deskripsi...">
+            <input type="text" id="searchInput" placeholder="Cari no. complaint / produk / pelapor / deskripsi...">
           </div>
           <select id="filterStatus">
             <option value="">Semua Status</option>
@@ -54,8 +54,12 @@
             <option>High</option>
             <option>Critical</option>
           </select>
-          <select id="filterArea">
-            <option value="">Semua Area</option>
+          <select id="filterSumber">
+            <option value="">Semua Sumber</option>
+            <option>Email</option>
+            <option>Telepon</option>
+            <option>WhatsApp</option>
+            <option>Lainnya</option>
           </select>
         </div>
 
@@ -63,12 +67,12 @@
           <table class="data-table" id="complaintTable">
             <thead>
               <tr>
-                <th>No. Complaint</th><th>Tanggal</th><th>Area / Mesin</th>
+                <th>No. Complaint</th><th>Tanggal</th><th>Produk</th><th>Pelapor</th><th>Sumber</th>
                 <th>Kategori</th><th>Severity</th><th>Status</th><th>Foto</th><th></th>
               </tr>
             </thead>
             <tbody>
-              <tr><td colspan="8" class="page-loader"><span class="spinner"></span>Memuat data...</td></tr>
+              <tr><td colspan="10" class="page-loader"><span class="spinner"></span>Memuat data...</td></tr>
             </tbody>
           </table>
         </div>
@@ -77,6 +81,7 @@
   </div>
 </div>
 
+<div id="modals-root">
 <!-- MODAL: FORM COMPLAINT -->
 <div class="modal-backdrop" id="formModal">
   <div class="modal">
@@ -89,37 +94,56 @@
         <input type="hidden" id="complaintId">
         <div class="form-grid">
           <div class="field">
-            <label>Tanggal <span class="req">*</span></label>
+            <label>Tanggal Complaint <span class="req">*</span></label>
             <input type="date" id="fTanggal" required>
           </div>
           <div class="field">
-            <label>Shift</label>
-            <select id="fShift">
-              <option value="">-- Pilih Shift --</option>
-              <option>Shift 1</option>
-              <option>Shift 2</option>
-              <option>Shift 3</option>
-              <option>Non-Shift</option>
+            <label>Sumber Complaint <span class="req">*</span></label>
+            <select id="fSumber" required>
+              <option value="">-- Pilih Sumber --</option>
+              <option>Email</option>
+              <option>Telepon</option>
+              <option>WhatsApp</option>
+              <option>Lainnya</option>
             </select>
           </div>
-          <div class="field">
-            <label>Area <span class="req">*</span></label>
-            <select id="fArea" required></select>
+
+          <div class="field full" style="margin-top:4px;">
+            <label style="font-weight:700; color:#0f766e;">Informasi Produk</label>
           </div>
           <div class="field">
-            <label>Mesin</label>
-            <select id="fMesin"></select>
+            <label>Nama Produk <span class="req">*</span></label>
+            <input type="text" id="fProdukNama" placeholder="Cth: Nugget Ayam 500gr" required>
           </div>
           <div class="field">
-            <label>Equipment</label>
-            <select id="fEquipment"></select>
+            <label>Kode Batch</label>
+            <input type="text" id="fKodeBatch" placeholder="Cth: B240712A">
           </div>
           <div class="field">
-            <label>Pelapor (Karyawan)</label>
-            <select id="fKaryawan">
-              <option value="">-- Pilih Karyawan --</option>
-            </select>
+            <label>Tanggal Produksi</label>
+            <input type="date" id="fTglProduksi">
           </div>
+          <div class="field">
+            <label>Tanggal Kadaluarsa</label>
+            <input type="date" id="fTglKadaluarsa">
+          </div>
+
+          <div class="field full" style="margin-top:4px;">
+            <label style="font-weight:700; color:#0f766e;">Informasi Pelapor (Pelanggan / Konsumen)</label>
+          </div>
+          <div class="field">
+            <label>Nama Pelapor <span class="req">*</span></label>
+            <input type="text" id="fPelaporNama" placeholder="Nama pelanggan / konsumen" required>
+          </div>
+          <div class="field">
+            <label>Kontak Pelapor</label>
+            <input type="text" id="fPelaporKontak" placeholder="No. HP / Email pelapor">
+          </div>
+          <div class="field full">
+            <label>Asal Pelapor</label>
+            <input type="text" id="fPelaporAsal" placeholder="Cth: Toko Sinar Jaya, Jakarta / PT Mitra Pangan">
+          </div>
+
           <div class="field">
             <label>Kategori</label>
             <select id="fKategori">
@@ -193,12 +217,14 @@
     </div>
   </div>
 </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="js/config.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/layout.js"></script>
-<script src="js/complaint.js"></script>
+<script src="js/router.js"></script>
 </body>
 </html>

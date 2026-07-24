@@ -12,6 +12,32 @@ async function requireAuth() {
   return session;
 }
 
+// ---------- Profile & role ----------
+let _profileCache = null;
+
+// Ambil profile (nama + role) akun yang sedang login. Di-cache per pageload.
+async function getCurrentProfile() {
+  if (_profileCache) return _profileCache;
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await supabaseClient.from('profiles').select('*').eq('id', user.id).maybeSingle();
+  if (error) { console.error(error); return null; }
+  _profileCache = data || { id: user.id, email: user.email, nama: user.email?.split('@')[0], role: 'User' };
+  return _profileCache;
+}
+
+// Guard: hanya boleh diakses Admin. Redirect ke index.html kalau bukan admin.
+async function requireAdmin() {
+  const session = await requireAuth();
+  if (!session) return null;
+  const profile = await getCurrentProfile();
+  if (!profile || profile.role !== 'Admin') {
+    window.location.href = 'index.html';
+    return null;
+  }
+  return profile;
+}
+
 // ---------- Toast ----------
 function ensureToastWrap() {
   let wrap = document.querySelector('.toast-wrap');

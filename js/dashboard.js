@@ -1,6 +1,9 @@
 /* =========================================================
    DASHBOARD LOGIC
+   Dibungkus IIFE supaya variabel/fungsinya tidak bentrok dengan
+   controller halaman lain di sesi SPA yang sama.
 ========================================================= */
+(function () {
 
 const TEAL = '#0f766e';
 const TEAL_LIGHT = '#1cb5a6';
@@ -9,18 +12,17 @@ const RED = '#d64545';
 const GREEN = '#1a9c6b';
 const GREY = '#a9bab7';
 
-(async function init() {
+window.PageControllers = window.PageControllers || {};
+window.PageControllers.dashboard = async function initDashboardPage() {
   const session = await requireAuth();
   if (!session) return;
 
-  renderShell({ active: 'dashboard', title: 'Dashboard', breadcrumb: 'Quality Assurance System / Dashboard' });
-
   await loadDashboard();
-})();
+};
 
 async function loadDashboard() {
   const [complaintsRes, qcRes, areasRes] = await Promise.all([
-    supabaseClient.from('complaints').select('*, master_area(nama)').order('created_at', { ascending: false }),
+    supabaseClient.from('complaints').select('*').order('created_at', { ascending: false }),
     supabaseClient.from('qc_reports').select('*, master_area(nama)').order('created_at', { ascending: false }),
     supabaseClient.from('master_area').select('*'),
   ]);
@@ -35,7 +37,7 @@ async function loadDashboard() {
   renderStats(complaints, qcReports);
   renderTrendChart(complaints, qcReports);
   renderStatusChart(complaints);
-  renderAreaChart(complaints, areas);
+  renderSumberChart(complaints);
   renderQcResultChart(qcReports);
   renderRecentComplaints(complaints.slice(0, 6));
   renderRecentQc(qcReports.slice(0, 6));
@@ -120,14 +122,14 @@ function renderStatusChart(complaints) {
   `).join('');
 }
 
-function renderAreaChart(complaints, areas) {
-  const counts = areas.map(a => complaints.filter(c => c.area_id === a.id).length);
-  const labels = areas.map(a => a.nama);
+function renderSumberChart(complaints) {
+  const sources = ['Email', 'Telepon', 'WhatsApp', 'Lainnya'];
+  const counts = sources.map(s => complaints.filter(c => c.sumber_complaint === s).length);
 
   new Chart(document.getElementById('areaChart'), {
     type: 'bar',
     data: {
-      labels,
+      labels: sources,
       datasets: [{ label: 'Complaint', data: counts, backgroundColor: TEAL_LIGHT, borderRadius: 6, maxBarThickness: 28 }],
     },
     options: {
@@ -177,7 +179,7 @@ function renderRecentComplaints(list) {
     <tr>
       <td>${escapeHtml(c.complaint_no)}</td>
       <td>${formatDate(c.tanggal)}</td>
-      <td>${escapeHtml(c.master_area?.nama || '-')}</td>
+      <td>${escapeHtml(c.produk_nama || '-')}</td>
       <td>${severityBadge(c.severity)}</td>
       <td>${statusBadge(c.status)}</td>
     </tr>
@@ -200,3 +202,5 @@ function renderRecentQc(list) {
     </tr>
   `).join('');
 }
+
+})();

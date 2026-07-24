@@ -57,6 +57,28 @@ p { margin: 0; }
 a { color: inherit; }
 button { font-family: inherit; }
 
+/* ---------- Transisi antar halaman ---------- */
+/* Aplikasi ini multi-page (setiap menu = reload halaman penuh), jadi tanpa ini
+   perpindahan terasa "patah". @view-transition bikin browser (Chrome/Edge
+   terbaru) otomatis crossfade antar halaman - di browser yang belum
+   mendukung, baris ini otomatis diabaikan (fallback ke reload biasa, tidak
+   ada efek buruk). */
+@view-transition {
+  navigation: auto;
+}
+
+/* Cegah sidebar "kosong sesaat" sebelum JS selesai render menu saat halaman
+   baru dimuat - kasih warna & lebar akhir dari awal supaya tidak ada gap
+   putih / lompatan layout. */
+#sidebar-root {
+  width: var(--sidebar-w);
+  min-height: 100vh;
+  background: linear-gradient(180deg, var(--teal-800), var(--teal-900));
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  z-index: 39;
+}
+
 /* ---------- Layout shell ---------- */
 .app-shell {
   display: flex;
@@ -325,6 +347,10 @@ button { font-family: inherit; }
 .field input[type=text],
 .field input[type=date],
 .field input[type=number],
+.field input[type=email],
+.field input[type=password],
+.field input[type=tel],
+.field input[type=search],
 .field select,
 .field textarea {
   width: 100%;
@@ -664,3 +690,24 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 }
 
 .hidden { display: none !important; }
+
+/* ---------- SPA route transitions ---------- */
+#route-progress {
+  position: fixed;
+  top: 0; left: var(--sidebar-w); right: 0;
+  height: 3px;
+  background: var(--teal-500, #1cb5a6);
+  z-index: 999;
+  width: 0%;
+  opacity: 0;
+  pointer-events: none;
+  transition: width .3s ease, opacity .2s ease;
+}
+#route-progress.active { opacity: 1; width: 75%; }
+#route-progress.done { width: 100%; transition: width .15s ease, opacity .3s ease .12s; opacity: 0; }
+
+#content-root.route-anim { animation: content-fade-in .2s ease; }
+@keyframes content-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}

@@ -1,27 +1,53 @@
 /* =========================================================
    REPORT QC PAGE LOGIC
+   Dibungkus IIFE supaya variabel/fungsinya (master, openForm,
+   viewDetail, dst) tidak bentrok dengan controller halaman lain
+   yang bisa saja sudah/akan dimuat di sesi SPA yang sama.
 ========================================================= */
+(function () {
+
+window.PageControllers = window.PageControllers || {};
 
 let master = null;
 let allReports = [];
 let selectedPhotoFile = null;
 let currentDetailId = null;
 
-(async function init() {
+window.PageControllers.report = async function initReportPage() {
   const session = await requireAuth();
   if (!session) return;
 
-  renderShell({ active: 'report', title: 'Report QC', breadcrumb: 'Quality Assurance System / Report QC' });
+  selectedPhotoFile = null;
+  currentDetailId = null;
 
   master = await loadMasterData();
   populateFilters();
   wireForm();
   wireFilters();
+  wireStaticButtons();
   await refreshReports();
 
   document.getElementById('newReportBtn').addEventListener('click', () => openForm(null));
   document.getElementById('exportExcelBtn').addEventListener('click', exportReports);
-})();
+};
+
+function wireStaticButtons() {
+  document.getElementById('editReportBtn').addEventListener('click', () => {
+    const r = allReports.find(x => x.id === currentDetailId);
+    closeModal('detailModal');
+    openForm(r);
+  });
+
+  document.getElementById('deleteReportBtn').addEventListener('click', async () => {
+    if (!currentDetailId) return;
+    if (!confirm('Hapus report QC ini? Tindakan tidak dapat dibatalkan.')) return;
+    const { error } = await supabaseClient.from('qc_reports').delete().eq('id', currentDetailId);
+    if (error) { toast('Gagal menghapus: ' + error.message, 'error'); return; }
+    toast('Report berhasil dihapus', 'success');
+    closeModal('detailModal');
+    await refreshReports();
+  });
+}
 
 function populateFilters() {
   const areaSel = document.getElementById('filterArea');
@@ -82,7 +108,7 @@ function renderTable() {
       <td>${resultBadge(r.hasil)}</td>
       <td>${escapeHtml(r.master_karyawan?.nama || '-')}</td>
       <td>${r.photo_url ? `<img src="${r.photo_url}" class="thumb-btn" onclick="event.stopPropagation(); window.open('${r.photo_url}','_blank')">` : `<div class="thumb-empty">–</div>`}</td>
-      <td><button class="btn btn-ghost btn-sm" onclick="viewDetail('${r.id}')">Detail</button></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="ReportPage.viewDetail('${r.id}')">Detail</button></td>
     </tr>
   `).join('');
 }
@@ -154,7 +180,7 @@ function renderPhotoPreview(url) {
   wrap.innerHTML = `
     <div class="photo-preview">
       <img src="${url}">
-      <button type="button" class="rm" onclick="removePhoto()">&times;</button>
+      <button type="button" class="rm" onclick="ReportPage.removePhoto()">&times;</button>
     </div>
   `;
 }
@@ -293,18 +319,6 @@ function viewDetail(id) {
   openModal('detailModal');
 }
 
-document.getElementById('editReportBtn').addEventListener('click', () => {
-  const r = allReports.find(x => x.id === currentDetailId);
-  closeModal('detailModal');
-  openForm(r);
-});
+window.ReportPage = { viewDetail, removePhoto };
 
-document.getElementById('deleteReportBtn').addEventListener('click', async () => {
-  if (!currentDetailId) return;
-  if (!confirm('Hapus report QC ini? Tindakan tidak dapat dibatalkan.')) return;
-  const { error } = await supabaseClient.from('qc_reports').delete().eq('id', currentDetailId);
-  if (error) { toast('Gagal menghapus: ' + error.message, 'error'); return; }
-  toast('Report berhasil dihapus', 'success');
-  closeModal('detailModal');
-  await refreshReports();
-});
+})();

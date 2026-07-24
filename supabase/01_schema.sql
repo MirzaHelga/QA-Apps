@@ -72,13 +72,16 @@ create sequence if not exists complaint_no_seq start 1;
 create table if not exists complaints (
   id uuid primary key default gen_random_uuid(),
   complaint_no text unique not null default ('CMP-' || to_char(now(),'YYYY') || '-' || lpad(nextval('complaint_no_seq')::text,4,'0')),
-  tanggal date not null default current_date,
-  shift text,                              -- Shift 1 / 2 / 3
-  area_id uuid references master_area(id),
-  mesin_id uuid references master_mesin(id),
-  equipment_id uuid references master_equipment(id),
-  pelapor_id uuid references master_karyawan(id),
-  kategori text,                           -- Foreign Material, Packaging, Process, dll
+  tanggal date not null default current_date,       -- tanggal complaint diterima/dicatat
+  sumber_complaint text not null default 'Email',   -- Email / Telepon / WhatsApp / Lainnya
+  produk_nama text not null,                        -- nama produk yang dikomplain
+  kode_batch text,                                  -- kode batch produk
+  tanggal_produksi date,
+  tanggal_kadaluarsa date,
+  pelapor_nama text not null,                       -- nama pelanggan/konsumen
+  pelapor_kontak text,                              -- no. telp / email pelapor
+  pelapor_asal text,                                -- asal: toko / kota / perusahaan
+  kategori text,                                    -- Foreign Material, Packaging, Rasa, dll
   severity complaint_severity not null default 'Medium',
   deskripsi text not null,
   tindakan_perbaikan text,
@@ -89,8 +92,8 @@ create table if not exists complaints (
 );
 
 create index if not exists idx_complaints_tanggal on complaints(tanggal);
-create index if not exists idx_complaints_area on complaints(area_id);
 create index if not exists idx_complaints_status on complaints(status);
+create index if not exists idx_complaints_sumber on complaints(sumber_complaint);
 
 -- =========================================================
 -- 4. REPORT QC

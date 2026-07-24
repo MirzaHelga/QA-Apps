@@ -16,7 +16,7 @@
   <div class="main-col">
     <div id="topbar-root"></div>
 
-    <main class="content">
+    <main class="content" id="content-root">
       <div class="page-head">
         <div>
           <h1>Dashboard</h1>
@@ -81,7 +81,7 @@
 
       <div class="grid-2" style="margin-top:16px;">
         <div class="card card-pad">
-          <div class="section-title">Complaint per Area</div>
+          <div class="section-title">Complaint per Sumber</div>
           <div class="chart-box"><canvas id="areaChart"></canvas></div>
         </div>
         <div class="card card-pad">
@@ -101,7 +101,7 @@
           <div class="table-wrap">
             <table class="data-table" id="recentComplaintTable">
               <thead>
-                <tr><th>No</th><th>Tanggal</th><th>Area</th><th>Severity</th><th>Status</th></tr>
+                <tr><th>No</th><th>Tanggal</th><th>Produk</th><th>Severity</th><th>Status</th></tr>
               </thead>
               <tbody><tr><td colspan="5" class="page-loader"><span class="spinner"></span>Memuat data...</td></tr></tbody>
             </table>
@@ -126,11 +126,14 @@
   </div>
 </div>
 
+<div id="modals-root"></div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="js/config.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/layout.js"></script>
-<script src="js/dashboard.js"></script>
+<script src="js/router.js"></script>
 </body>
 </html>

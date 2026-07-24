@@ -1,6 +1,9 @@
 /* =========================================================
    LAYOUT: Sidebar (permanen) + Topbar
-   Dipakai di semua halaman lewat renderShell()
+   Sidebar & topbar dirender SEKALI oleh renderSidebarOnce()
+   (dipanggil dari router.js). Pindah halaman lewat SPA hanya
+   memanggil updateTopbar()/applyActiveNav() — sidebar tidak
+   pernah dibangun ulang, jadi tidak pernah "kedip"/hilang.
 ========================================================= */
 
 const NAV_ITEMS = [
@@ -22,7 +25,19 @@ const NAV_ITEMS = [
   },
 ];
 
-function renderShell({ active, title, breadcrumb }) {
+// Menu tambahan yang hanya tampil untuk role Admin
+const NAV_ITEMS_ADMIN = [
+  {
+    key: 'akun', href: 'akun.html', label: 'Kelola Akun',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
+  },
+];
+
+let _activeNavKey = null;
+
+// Dipanggil SEKALI (oleh router.js saat boot). Membangun sidebar + topbar
+// ke dalam DOM dan tidak pernah disentuh lagi selama sesi SPA berjalan.
+function renderSidebarOnce() {
   const sidebarHtml = `
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-brand">
@@ -35,11 +50,13 @@ function renderShell({ active, title, breadcrumb }) {
       <nav class="sidebar-nav">
         <div class="nav-section-label">Menu Utama</div>
         ${NAV_ITEMS.map(item => `
-          <a class="nav-item ${item.key === active ? 'active' : ''}" href="${item.href}">
+          <a class="nav-item" data-key="${item.key}" href="${item.href}">
             ${item.icon}
             <span>${item.label}</span>
           </a>
         `).join('')}
+        <div class="nav-section-label" id="navAdminLabel" style="display:none;">Administrasi</div>
+        <div id="navAdminItems"></div>
       </nav>
       <div class="sidebar-foot">
         &copy; ${new Date().getFullYear()} Quality Assurance System
@@ -50,8 +67,8 @@ function renderShell({ active, title, breadcrumb }) {
   const topbarHtml = `
     <header class="topbar">
       <div>
-        <div class="topbar-title">${title}</div>
-        <div class="breadcrumb">${breadcrumb || ''}</div>
+        <div class="topbar-title" id="topbarTitle"></div>
+        <div class="breadcrumb" id="topbarBreadcrumb"></div>
       </div>
       <div class="topbar-right">
         <span class="today-pill" id="todayPill"></span>
@@ -87,22 +104,57 @@ function renderShell({ active, title, breadcrumb }) {
   loadCurrentUserChip();
 }
 
+// Dipanggil setiap pindah halaman (oleh router.js). Cuma update teks judul
+// & breadcrumb di topbar yang sudah ada — tidak membangun ulang apa pun.
+function updateTopbar(title, breadcrumb) {
+  const t = document.getElementById('topbarTitle');
+  const b = document.getElementById('topbarBreadcrumb');
+  if (t) t.textContent = title || '';
+  if (b) b.textContent = breadcrumb || '';
+}
+
+// Dipanggil setiap pindah halaman. Menandai item sidebar yang aktif
+// tanpa membangun ulang sidebar.
+function applyActiveNav(key) {
+  _activeNavKey = key;
+  document.querySelectorAll('.sidebar-nav .nav-item[data-key]').forEach(a => {
+    a.classList.toggle('active', a.dataset.key === key);
+  });
+}
+
 async function loadCurrentUserChip() {
   try {
-    const { data: { user } } = await supabaseClient.auth.getUser();
     const nameEl = document.getElementById('userName');
     const roleEl = document.getElementById('userRole');
     const avatarEl = document.getElementById('userAvatar');
-    if (user) {
-      const email = user.email || 'User';
-      nameEl.textContent = email.split('@')[0];
-      roleEl.textContent = 'Quality Assurance';
-      avatarEl.textContent = email.substring(0, 2).toUpperCase();
+
+    const profile = typeof getCurrentProfile === 'function' ? await getCurrentProfile() : null;
+
+    if (profile) {
+      const displayName = profile.nama || profile.email?.split('@')[0] || 'User';
+      nameEl.textContent = displayName;
+      roleEl.textContent = profile.role === 'Admin' ? 'Administrator' : 'Quality Assurance';
+      avatarEl.textContent = displayName.substring(0, 2).toUpperCase();
+
+      if (profile.role === 'Admin') {
+        document.getElementById('navAdminLabel').style.display = '';
+        document.getElementById('navAdminItems').innerHTML = NAV_ITEMS_ADMIN.map(item => `
+          <a class="nav-item" data-key="${item.key}" href="${item.href}">
+            ${item.icon}
+            <span>${item.label}</span>
+          </a>
+        `).join('');
+      }
     } else {
       nameEl.textContent = 'Tamu';
       roleEl.textContent = '-';
     }
   } catch (e) {
+    console.error(e);
     document.getElementById('userName').textContent = 'User';
+  } finally {
+    // Item admin baru saja disisipkan (async) — pastikan status "active"-nya
+    // tetap sinkron dengan halaman yang sedang dibuka.
+    applyActiveNav(_activeNavKey);
   }
 }

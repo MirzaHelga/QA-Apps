@@ -1,7 +1,10 @@
 /* =========================================================
    VERIFIKASI QUALITY PAGE LOGIC
    (Checklist "Proses After CIP" & "Proses Start Up")
+   Dibungkus IIFE supaya variabel/fungsinya tidak bentrok dengan
+   controller halaman lain di sesi SPA yang sama.
 ========================================================= */
+(function () {
 
 // Checklist master — diambil dari template LAPORAN VERIFIKASI QUALITY
 const VQ_CHECKLIST = {
@@ -43,22 +46,43 @@ let allVq = [];
 let activeTab = 'After CIP';
 let currentDetailId = null;
 
-(async function init() {
+window.PageControllers = window.PageControllers || {};
+window.PageControllers.verifikasi = async function initVerifikasiPage() {
   const session = await requireAuth();
   if (!session) return;
 
-  renderShell({ active: 'verifikasi', title: 'Verifikasi Quality', breadcrumb: 'Quality Assurance System / Verifikasi Quality' });
+  activeTab = 'After CIP';
+  currentDetailId = null;
 
   master = await loadMasterData();
   populateKaryawanSelects();
   wireTabs();
   wireFilters();
   wireForm();
+  wireStaticButtons();
   await refreshVq();
 
   document.getElementById('newVqBtn').addEventListener('click', () => openForm(null));
   document.getElementById('exportExcelBtn').addEventListener('click', exportVq);
-})();
+};
+
+function wireStaticButtons() {
+  document.getElementById('editVqBtn').addEventListener('click', () => {
+    const r = allVq.find(x => x.id === currentDetailId);
+    closeModal('detailModal');
+    openForm(r);
+  });
+
+  document.getElementById('deleteVqBtn').addEventListener('click', async () => {
+    if (!currentDetailId) return;
+    if (!confirm('Hapus data verifikasi ini? Tindakan tidak dapat dibatalkan.')) return;
+    const { error } = await supabaseClient.from('verifikasi_quality').delete().eq('id', currentDetailId);
+    if (error) { toast('Gagal menghapus: ' + error.message, 'error'); return; }
+    toast('Data berhasil dihapus', 'success');
+    closeModal('detailModal');
+    await refreshVq();
+  });
+}
 
 function populateKaryawanSelects() {
   const opts = '<option value="">-- Pilih Karyawan --</option>' +
@@ -149,7 +173,7 @@ function renderTable() {
       <td>${escapeHtml(r.flm?.nama || '-')}</td>
       <td>${escapeHtml(r.qa?.nama || '-')}</td>
       <td>${statusBadge(vqStatus(r))}</td>
-      <td><button class="btn btn-ghost btn-sm" onclick="viewDetail('${r.id}')">Detail</button></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="VerifikasiPage.viewDetail('${r.id}')">Detail</button></td>
     </tr>
   `).join('');
 }
@@ -372,18 +396,6 @@ function viewDetail(id) {
   openModal('detailModal');
 }
 
-document.getElementById('editVqBtn').addEventListener('click', () => {
-  const r = allVq.find(x => x.id === currentDetailId);
-  closeModal('detailModal');
-  openForm(r);
-});
+window.VerifikasiPage = { viewDetail };
 
-document.getElementById('deleteVqBtn').addEventListener('click', async () => {
-  if (!currentDetailId) return;
-  if (!confirm('Hapus data verifikasi ini? Tindakan tidak dapat dibatalkan.')) return;
-  const { error } = await supabaseClient.from('verifikasi_quality').delete().eq('id', currentDetailId);
-  if (error) { toast('Gagal menghapus: ' + error.message, 'error'); return; }
-  toast('Data berhasil dihapus', 'success');
-  closeModal('detailModal');
-  await refreshVq();
-});
+})();

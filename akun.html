@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kelola Akun — Quality Assurance System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="app-shell">
+  <div id="sidebar-root"></div>
+
+  <div class="main-col">
+    <div id="topbar-root"></div>
+
+    <main class="content" id="content-root">
+      <div class="page-head">
+        <div>
+          <h1>Kelola Akun</h1>
+          <p>Tambah, ubah, nonaktifkan, atau hapus akun login pengguna aplikasi. Halaman ini khusus Admin.</p>
+        </div>
+        <div>
+          <button class="btn btn-primary" id="newAkunBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            Akun Baru
+          </button>
+        </div>
+      </div>
+
+      <div class="card card-pad" style="margin-bottom:16px;">
+        <div class="filters-bar">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="searchInput" placeholder="Cari nama / email...">
+          </div>
+          <select id="filterRole">
+            <option value="">Semua Role</option>
+            <option value="Admin">Admin</option>
+            <option value="User">User</option>
+          </select>
+          <select id="filterStatus">
+            <option value="">Semua Status</option>
+            <option value="active">Aktif</option>
+            <option value="banned">Nonaktif</option>
+          </select>
+        </div>
+
+        <div class="table-wrap">
+          <table class="data-table" id="akunTable">
+            <thead>
+              <tr>
+                <th>Nama</th><th>Email</th><th>Role</th><th>Status</th><th>Login Terakhir</th><th>Dibuat</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="7" class="page-loader"><span class="spinner"></span>Memuat data...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<div id="modals-root">
+<!-- MODAL: FORM AKUN (Create / Edit) -->
+<div class="modal-backdrop" id="formModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="formModalTitle">Akun Baru</h3>
+      <button class="modal-close" onclick="closeModal('formModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <form id="akunForm">
+        <input type="hidden" id="akunId">
+        <div class="form-grid">
+          <div class="field full">
+            <label>Nama <span class="req">*</span></label>
+            <input type="text" id="fNama" placeholder="mis. Budi Santoso" required>
+          </div>
+          <div class="field full">
+            <label>Email <span class="req">*</span></label>
+            <input type="email" id="fEmail" placeholder="nama@savoria.co.id" required>
+          </div>
+          <div class="field full" id="passwordField">
+            <label>Password <span class="req">*</span></label>
+            <input type="password" id="fPassword" placeholder="Minimal 6 karakter" autocomplete="new-password">
+            <div class="hint" id="passwordHint">Kosongkan saat edit jika tidak ingin mengubah password.</div>
+          </div>
+          <div class="field full">
+            <label>Role <span class="req">*</span></label>
+            <div class="radio-row" id="roleChips">
+              <label class="radio-chip sel-pass" data-val="User"><input type="radio" name="role" value="User" checked>User</label>
+              <label class="radio-chip" data-val="Admin"><input type="radio" name="role" value="Admin">Admin</label>
+            </div>
+            <div class="hint">Admin bisa mengelola akun lain lewat halaman ini. User hanya akses menu operasional.</div>
+          </div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-secondary" onclick="closeModal('formModal')">Batal</button>
+      <button class="btn btn-primary" id="saveAkunBtn">Simpan Akun</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DETAIL -->
+<div class="modal-backdrop" id="detailModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Detail Akun</h3>
+      <button class="modal-close" onclick="closeModal('detailModal')">&times;</button>
+    </div>
+    <div class="modal-body" id="detailBody"></div>
+    <div class="modal-foot">
+      <button class="btn btn-danger" id="deleteAkunBtn">Hapus</button>
+      <button class="btn btn-secondary" id="toggleBanBtn">Nonaktifkan</button>
+      <button class="btn btn-secondary" onclick="closeModal('detailModal')">Tutup</button>
+      <button class="btn btn-primary" id="editAkunBtn">Edit</button>
+    </div>
+  </div>
+</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/router.js"></script>
+</body>
+</html>
