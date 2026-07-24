@@ -10,7 +10,7 @@
 </head>
 <body>
 
-<div class="app-shell">
+<div class="app-shell" style="visibility:hidden">
   <div id="sidebar-root"></div>
 
   <div class="main-col">
@@ -43,7 +43,7 @@
         <div class="filters-bar">
           <div class="search-box">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <input type="text" id="searchInput" placeholder="Cari no. verifikasi / line / FLM / QA...">
+            <input type="text" id="searchInput" placeholder="Cari no. verifikasi / line / operator / FLM / QA...">
           </div>
           <select id="filterShift">
             <option value="">Semua Shift</option>
@@ -63,11 +63,11 @@
             <thead>
               <tr>
                 <th>No. Verifikasi</th><th>Tanggal</th><th>Shift</th><th>Line</th>
-                <th>FLM</th><th>QA</th><th>Status</th><th></th>
+                <th>FLM</th><th>QA</th><th>Status</th><th>Approval</th><th></th>
               </tr>
             </thead>
             <tbody>
-              <tr><td colspan="8" class="page-loader"><span class="spinner"></span>Memuat data...</td></tr>
+              <tr><td colspan="9" class="page-loader"><span class="spinner"></span>Memuat data...</td></tr>
             </tbody>
           </table>
         </div>
@@ -112,19 +112,20 @@
             <label>Line</label>
             <input type="text" id="fLine" placeholder="mis. Line 1 / Line 1,2,3,4,5">
           </div>
-          <div class="field" style="justify-content:flex-end;">
-            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-              <input type="checkbox" id="fPerLine" style="width:16px; height:16px;">
-              Verifikasi per-line
+          <div class="field">
+            <label>Verifikasi per-line</label>
+            <label class="checkbox-box">
+              <input type="checkbox" id="fPerLine">
+              <span>Aktifkan verifikasi per-line</span>
             </label>
           </div>
           <div class="field">
-            <label>FLM (Nama/TTD)</label>
-            <select id="fFlm"><option value="">-- Pilih Karyawan --</option></select>
+            <label>Operator (Nama/NIK)</label>
+            <select id="fOperator"><option value="">-- Pilih Karyawan --</option></select>
           </div>
           <div class="field">
-            <label>QA (Nama/TTD)</label>
-            <select id="fQa"><option value="">-- Pilih Karyawan --</option></select>
+            <label>FLM (Nama/NIK)</label>
+            <select id="fFlm"><option value="">-- Pilih Karyawan --</option></select>
           </div>
         </div>
 
@@ -138,6 +139,7 @@
                 <th class="std-col">Standard</th>
                 <th class="hasil-col">Hasil Pengecekan</th>
                 <th class="status-col">Status</th>
+                <th class="foto-col">Foto</th>
               </tr>
             </thead>
             <tbody id="checklistBody"></tbody>
@@ -150,6 +152,7 @@
             <textarea id="fCatatan" placeholder="Catatan umum hasil verifikasi (opsional)..."></textarea>
           </div>
         </div>
+        <input type="file" id="rowPhotoInput" accept="image/*" class="hidden" multiple>
       </form>
     </div>
     <div class="modal-foot">
@@ -169,8 +172,10 @@
     <div class="modal-body" id="detailBody"></div>
     <div class="modal-foot">
       <button class="btn btn-danger" id="deleteVqBtn">Hapus</button>
+      <button class="btn btn-danger" id="rejectVqBtn" style="display:none;">Tolak</button>
       <button class="btn btn-secondary" onclick="closeModal('detailModal')">Tutup</button>
       <button class="btn btn-primary" id="editVqBtn">Edit</button>
+      <button class="btn btn-primary" id="approveVqBtn" style="display:none;">Approve</button>
     </div>
   </div>
 </div>

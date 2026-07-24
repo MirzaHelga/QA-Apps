@@ -45,6 +45,7 @@ let master = null;
 let allVq = [];
 let activeTab = 'After CIP';
 let currentDetailId = null;
+let currentProfile = null;
 
 window.PageControllers = window.PageControllers || {};
 window.PageControllers.verifikasi = async function initVerifikasiPage() {
@@ -54,17 +55,30 @@ window.PageControllers.verifikasi = async function initVerifikasiPage() {
   activeTab = 'After CIP';
   currentDetailId = null;
 
+  currentProfile = await getCurrentProfile();
   master = await loadMasterData();
   populateKaryawanSelects();
   wireTabs();
   wireFilters();
   wireForm();
+  wirePhotoUpload();
   wireStaticButtons();
+  applyRoleRestrictions();
   await refreshVq();
 
   document.getElementById('newVqBtn').addEventListener('click', () => openForm(null));
   document.getElementById('exportExcelBtn').addEventListener('click', exportVq);
 };
+
+// Operator: hanya boleh input verifikasi baru, tidak boleh export / edit / hapus / approve.
+function isOperator() { return currentProfile?.role === 'Operator'; }
+function canApprove() { return currentProfile?.role === 'Admin' || currentProfile?.role === 'Spv'; }
+
+function applyRoleRestrictions() {
+  if (isOperator()) {
+    document.getElementById('exportExcelBtn').style.display = 'none';
+  }
+}
 
 function wireStaticButtons() {
   document.getElementById('editVqBtn').addEventListener('click', () => {
@@ -82,13 +96,125 @@ function wireStaticButtons() {
     closeModal('detailModal');
     await refreshVq();
   });
+
+  document.getElementById('approveVqBtn').addEventListener('click', async () => {
+    if (!currentDetailId || !canApprove()) return;
+    const qaSelect = document.getElementById('fApprovalQa');
+    const qaId = qaSelect ? qaSelect.value : '';
+    if (!qaId) {
+      toast('Pilih QA (Nama/NIK) sebelum approve', 'error');
+      return;
+    }
+    const { error } = await supabaseClient.from('verifikasi_quality').update({
+      approval_status: 'Approved',
+      approved_by: currentProfile.id,
+      approved_at: new Date().toISOString(),
+      catatan_approval: null,
+      qa_id: qaId,
+    }).eq('id', currentDetailId);
+    if (error) { toast('Gagal approve: ' + error.message, 'error'); return; }
+    toast('Verifikasi disetujui', 'success');
+    closeModal('detailModal');
+    await refreshVq();
+    if (canApprove() && typeof loadPendingApprovalBadge === 'function') loadPendingApprovalBadge();
+  });
+
+  document.getElementById('rejectVqBtn').addEventListener('click', async () => {
+    if (!currentDetailId || !canApprove()) return;
+    const alasan = prompt('Alasan penolakan (opsional):') || null;
+    const { error } = await supabaseClient.from('verifikasi_quality').update({
+      approval_status: 'Ditolak',
+      approved_by: currentProfile.id,
+      approved_at: new Date().toISOString(),
+      catatan_approval: alasan,
+    }).eq('id', currentDetailId);
+    if (error) { toast('Gagal menolak: ' + error.message, 'error'); return; }
+    toast('Verifikasi ditolak', 'success');
+    closeModal('detailModal');
+    await refreshVq();
+    if (canApprove() && typeof loadPendingApprovalBadge === 'function') loadPendingApprovalBadge();
+  });
+}
+
+/* ---------------- Foto per-baris checklist ---------------- */
+// rowPhotos[idx] = { existing: [url,...], new: [File,...] }
+let rowPhotos = {};
+let activePhotoRowIdx = null;
+
+function ensureRowPhotos(idx) {
+  if (!rowPhotos[idx]) rowPhotos[idx] = { existing: [], new: [] };
+  return rowPhotos[idx];
+}
+
+function wirePhotoUpload() {
+  const rowPhotoInput = document.getElementById('rowPhotoInput');
+  rowPhotoInput.addEventListener('change', async () => {
+    const files = Array.from(rowPhotoInput.files || []);
+    rowPhotoInput.value = '';
+    if (!files.length || activePhotoRowIdx === null) return;
+
+    const tooBig = files.filter(f => f.size > 8 * 1024 * 1024);
+    if (tooBig.length) toast(`${tooBig.length} foto dilewati karena lebih dari 8MB`, 'error');
+
+    const ok = files.filter(f => f.size <= 8 * 1024 * 1024);
+    ensureRowPhotos(activePhotoRowIdx).new.push(...ok);
+    renderRowPhotoPreview(activePhotoRowIdx);
+  });
+
+  // Delegasi klik tombol kamera & tombol hapus foto per-baris (baris dibangun ulang tiap render)
+  document.getElementById('checklistBody').addEventListener('click', (e) => {
+    const btn = e.target.closest('.row-photo-btn');
+    if (btn) {
+      activePhotoRowIdx = Number(btn.dataset.idx);
+      document.getElementById('rowPhotoInput').click();
+      return;
+    }
+    const rm = e.target.closest('.rp-tile .rm');
+    if (rm) {
+      const idx = Number(rm.dataset.idx);
+      const type = rm.dataset.type;
+      const i = Number(rm.dataset.i);
+      const rp = ensureRowPhotos(idx);
+      if (type === 'existing') rp.existing.splice(i, 1);
+      else rp.new.splice(i, 1);
+      renderRowPhotoPreview(idx);
+    }
+  });
+}
+
+function renderRowPhotoPreview(idx) {
+  const cell = document.querySelector(`.foto-col-cell[data-idx="${idx}"]`);
+  if (!cell) return;
+  const rp = ensureRowPhotos(idx);
+  const count = rp.existing.length + rp.new.length;
+
+  const countEl = cell.querySelector('.row-photo-count');
+  if (countEl) countEl.textContent = count;
+
+  const wrap = cell.querySelector('.row-photo-preview');
+  const existingTiles = rp.existing.map((url, i) => `
+    <div class="rp-tile">
+      <img src="${url}" onclick="window.open('${url}','_blank')">
+      <button type="button" class="rm" data-idx="${idx}" data-type="existing" data-i="${i}">&times;</button>
+    </div>
+  `).join('');
+  const newTiles = rp.new.map((file, i) => `
+    <div class="rp-tile">
+      <img src="${URL.createObjectURL(file)}">
+      <button type="button" class="rm" data-idx="${idx}" data-type="new" data-i="${i}">&times;</button>
+    </div>
+  `).join('');
+  wrap.innerHTML = existingTiles + newTiles;
+}
+
+function karyawanOptions(selectedId) {
+  return '<option value="">-- Pilih Karyawan --</option>' +
+    master.karyawan.map(k => `<option value="${k.id}" ${String(k.id) === String(selectedId) ? 'selected' : ''}>${escapeHtml(k.nama)} (${escapeHtml(k.nik)})</option>`).join('');
 }
 
 function populateKaryawanSelects() {
-  const opts = '<option value="">-- Pilih Karyawan --</option>' +
-    master.karyawan.map(k => `<option value="${k.id}">${escapeHtml(k.nama)} (${escapeHtml(k.nik)})</option>`).join('');
-  document.getElementById('fFlm').innerHTML = opts;
-  document.getElementById('fQa').innerHTML = opts;
+  document.getElementById('fOperator').innerHTML = karyawanOptions();
+  document.getElementById('fFlm').innerHTML = karyawanOptions();
 }
 
 /* ---------------- Tabs ---------------- */
@@ -117,7 +243,7 @@ function wireFilters() {
 async function refreshVq() {
   const { data, error } = await supabaseClient
     .from('verifikasi_quality')
-    .select('*, flm:flm_id(nama), qa:qa_id(nama)')
+    .select('*, operator:operator_id(nama), flm:flm_id(nama), qa:qa_id(nama)')
     .order('created_at', { ascending: false });
   if (error) { toast('Gagal memuat data: ' + error.message, 'error'); return; }
   allVq = data || [];
@@ -134,6 +260,11 @@ function statusBadge(status) {
   return `<span class="badge ${status === 'Sesuai' ? 'badge-ok' : 'badge-no'}">${status}</span>`;
 }
 
+function approvalBadge(status) {
+  const cls = status === 'Approved' ? 'badge-closed' : status === 'Ditolak' ? 'badge-rejected' : 'badge-open';
+  return `<span class="badge ${cls}">${status || 'Menunggu Approval'}</span>`;
+}
+
 function getFilteredVq() {
   const q = document.getElementById('searchInput').value.trim().toLowerCase();
   const fShift = document.getElementById('filterShift').value;
@@ -141,10 +272,11 @@ function getFilteredVq() {
 
   return allVq.filter(r => {
     if (r.tipe !== activeTab) return false;
+    if (isOperator() && r.created_by !== currentProfile.id) return false;
     if (fShift && r.shift !== fShift) return false;
     if (fStatus && vqStatus(r) !== fStatus) return false;
     if (q) {
-      const hay = `${r.no} ${r.line || ''} ${r.flm?.nama || ''} ${r.qa?.nama || ''}`.toLowerCase();
+      const hay = `${r.no} ${r.line || ''} ${r.operator?.nama || ''} ${r.flm?.nama || ''} ${r.qa?.nama || ''}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -156,7 +288,7 @@ function renderTable() {
   const tbody = document.querySelector('#vqTable tbody');
 
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state">
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></svg>
       <div class="t">Belum ada data verifikasi</div>
       <div class="s">Klik "Verifikasi Baru" untuk menambahkan data</div>
@@ -173,6 +305,7 @@ function renderTable() {
       <td>${escapeHtml(r.flm?.nama || '-')}</td>
       <td>${escapeHtml(r.qa?.nama || '-')}</td>
       <td>${statusBadge(vqStatus(r))}</td>
+      <td>${approvalBadge(r.approval_status)}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="VerifikasiPage.viewDetail('${r.id}')">Detail</button></td>
     </tr>
   `).join('');
@@ -224,11 +357,14 @@ function wireForm() {
 function renderChecklistRows(tipe, existingItems) {
   const items = VQ_CHECKLIST[tipe] || [];
   const body = document.getElementById('checklistBody');
+  rowPhotos = {};
 
   body.innerHTML = items.map((it, idx) => {
     const existing = existingItems && existingItems[idx];
     const hasil = existing ? (existing.hasil || '') : '';
     const status = existing ? (existing.status || 'Sesuai') : 'Sesuai';
+    const existingPhotos = (existing && existing.photos) ? existing.photos : [];
+    rowPhotos[idx] = { existing: [...existingPhotos], new: [] };
     return `
       <tr>
         <td class="no-col">${idx + 1}</td>
@@ -245,6 +381,13 @@ function renderChecklistRows(tipe, existingItems) {
             </label>
           </div>
         </td>
+        <td class="foto-col foto-col-cell" data-idx="${idx}">
+          <button type="button" class="row-photo-btn" data-idx="${idx}" title="Ambil foto / unggah dari galeri">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <span class="row-photo-count">${existingPhotos.length}</span>
+          </button>
+          <div class="row-photo-preview"></div>
+        </td>
       </tr>
     `;
   }).join('');
@@ -257,11 +400,14 @@ function renderChecklistRows(tipe, existingItems) {
       });
     });
   });
+
+  items.forEach((it, idx) => renderRowPhotoPreview(idx));
 }
 
 function openForm(record) {
   document.getElementById('vqForm').reset();
   document.getElementById('vqId').value = '';
+  activePhotoRowIdx = null;
 
   const tipe = record ? record.tipe : activeTab;
   document.querySelectorAll('#tipeChips .radio-chip').forEach(c => c.classList.remove('sel-pass'));
@@ -277,8 +423,8 @@ function openForm(record) {
     document.getElementById('fShift').value = record.shift || '';
     document.getElementById('fLine').value = record.line || '';
     document.getElementById('fPerLine').checked = !!record.per_line;
+    document.getElementById('fOperator').value = record.operator_id || '';
     document.getElementById('fFlm').value = record.flm_id || '';
-    document.getElementById('fQa').value = record.qa_id || '';
     document.getElementById('fCatatan').value = record.catatan || '';
   } else {
     document.getElementById('formModalTitle').textContent = 'Verifikasi Quality Baru';
@@ -298,6 +444,7 @@ function collectChecklistItems(tipe) {
       standard: it.standard,
       hasil: hasilInput ? hasilInput.value.trim() : '',
       status: statusInput ? statusInput.value : 'Sesuai',
+      _rowIdx: idx, // dipakai internal buat mapping foto pas saveVq, dibuang sebelum insert
     };
   });
 }
@@ -318,17 +465,37 @@ async function saveVq() {
   btn.innerHTML = '<span class="spinner"></span> Menyimpan...';
 
   try {
+    const items = collectChecklistItems(tipe);
+
+    // Upload foto baru per-baris, lalu gabung sama foto lama & tempel ke masing-masing item
+    for (const item of items) {
+      const idx = item._rowIdx;
+      const rp = rowPhotos[idx] || { existing: [], new: [] };
+      const uploadedUrls = [];
+      for (const file of rp.new) {
+        uploadedUrls.push(await uploadPhoto(file, 'verifikasi'));
+      }
+      item.photos = [...rp.existing, ...uploadedUrls];
+      delete item._rowIdx;
+    }
+
     const payload = {
       tipe,
       tanggal,
       shift: document.getElementById('fShift').value || null,
       line: document.getElementById('fLine').value.trim() || null,
       per_line: document.getElementById('fPerLine').checked,
-      items: collectChecklistItems(tipe),
+      items,
+      operator_id: document.getElementById('fOperator').value || null,
       flm_id: document.getElementById('fFlm').value || null,
-      qa_id: document.getElementById('fQa').value || null,
       catatan: document.getElementById('fCatatan').value.trim() || null,
+      // isi ulang / perubahan checklist selalu perlu di-approve ulang oleh Spv
+      approval_status: 'Menunggu Approval',
+      approved_by: null,
+      approved_at: null,
+      catatan_approval: null,
     };
+    if (!id) payload.created_by = currentProfile?.id || null;
 
     let error;
     if (id) {
@@ -341,6 +508,7 @@ async function saveVq() {
     toast(id ? 'Verifikasi berhasil diperbarui' : 'Verifikasi berhasil disimpan', 'success');
     closeModal('formModal');
     await refreshVq();
+    if (canApprove() && typeof loadPendingApprovalBadge === 'function') loadPendingApprovalBadge();
   } catch (e) {
     toast('Gagal menyimpan: ' + e.message, 'error');
   } finally {
@@ -358,6 +526,7 @@ function viewDetail(id) {
 
   const itemsHtml = (r.items || []).map((it, idx) => {
     const isNok = it.status === 'Tidak Sesuai';
+    const photos = it.photos || [];
     return `
     <tr>
       <td class="no-col">${idx + 1}</td>
@@ -365,6 +534,7 @@ function viewDetail(id) {
       <td class="std-col">${escapeHtml(it.standard)}</td>
       <td>${escapeHtml(it.hasil || '-')}</td>
       <td><span class="badge ${isNok ? 'badge-no' : 'badge-ok'}">${isNok ? 'NOK' : 'OK'}</span></td>
+      <td class="foto-col">${photos.length ? `<div class="vq-photo-grid">${photos.map(url => `<img src="${url}" style="width:34px;height:34px;" onclick="window.open('${url}','_blank')">`).join('')}</div>` : '-'}</td>
     </tr>
   `;
   }).join('');
@@ -379,20 +549,45 @@ function viewDetail(id) {
       <div class="detail-item"><div class="k">Shift</div><div class="v">${r.shift ? 'Shift ' + escapeHtml(r.shift) : '-'}</div></div>
       <div class="detail-item"><div class="k">Line</div><div class="v">${escapeHtml(r.line || '-')}${r.per_line ? ' (per-line)' : ''}</div></div>
       <div class="detail-item"><div class="k">Status</div><div class="v">${statusBadge(vqStatus(r))}</div></div>
+      <div class="detail-item"><div class="k">Approval</div><div class="v">${approvalBadge(r.approval_status)}</div></div>
+      <div class="detail-item"><div class="k">Operator</div><div class="v">${escapeHtml(r.operator?.nama || '-')}</div></div>
       <div class="detail-item"><div class="k">FLM</div><div class="v">${escapeHtml(r.flm?.nama || '-')}</div></div>
       <div class="detail-item"><div class="k">QA</div><div class="v">${escapeHtml(r.qa?.nama || '-')}</div></div>
+      <div class="detail-item"><div class="k">Dibuat</div><div class="v" style="font-weight:400;">${formatDateTime(r.created_at)}</div></div>
     </div>
     ${r.catatan ? `<div class="detail-item" style="margin-bottom:12px;"><div class="k">Catatan</div><div class="v" style="font-weight:400;">${escapeHtml(r.catatan)}</div></div>` : ''}
+    ${r.catatan_approval ? `<div class="detail-item" style="margin-bottom:12px;"><div class="k">Catatan Approval</div><div class="v" style="font-weight:400;">${escapeHtml(r.catatan_approval)}</div></div>` : ''}
+    ${canApprove() && r.approval_status === 'Menunggu Approval' ? `
+      <div class="field" style="max-width:360px; margin-bottom:12px;">
+        <label>QA (Nama/NIK) <span class="req">*</span></label>
+        <select id="fApprovalQa">${karyawanOptions(r.qa_id)}</select>
+      </div>
+    ` : ''}
     <div class="section-title" style="margin-top:6px;">Checklist Pengecekan</div>
     <div class="check-table-wrap">
       <table class="check-table">
         <thead>
-          <tr><th class="no-col">No</th><th>Pengecekan</th><th class="std-col">Standard</th><th>Hasil Pengecekan</th><th class="status-col">Status</th></tr>
+          <tr><th class="no-col">No</th><th>Pengecekan</th><th class="std-col">Standard</th><th>Hasil Pengecekan</th><th class="status-col">Status</th><th class="foto-col">Foto</th></tr>
         </thead>
         <tbody>${itemsHtml}</tbody>
       </table>
     </div>
   `;
+
+  // Tombol aksi disesuaikan dengan role & status approval:
+  // - Operator: tidak bisa edit/hapus/approve, cuma lihat.
+  // - Spv/Admin: bisa edit/hapus, dan bisa Approve/Tolak selama masih "Menunggu Approval".
+  const editBtn = document.getElementById('editVqBtn');
+  const deleteBtn = document.getElementById('deleteVqBtn');
+  const approveBtn = document.getElementById('approveVqBtn');
+  const rejectBtn = document.getElementById('rejectVqBtn');
+
+  editBtn.style.display = isOperator() ? 'none' : '';
+  deleteBtn.style.display = isOperator() ? 'none' : '';
+  const showApproval = canApprove() && r.approval_status === 'Menunggu Approval';
+  approveBtn.style.display = showApproval ? '' : 'none';
+  rejectBtn.style.display = showApproval ? '' : 'none';
+
   openModal('detailModal');
 }
 

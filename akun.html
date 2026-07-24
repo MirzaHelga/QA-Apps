@@ -10,7 +10,7 @@
 </head>
 <body>
 
-<div class="app-shell">
+<div class="app-shell" style="visibility:hidden">
   <div id="sidebar-root"></div>
 
   <div class="main-col">
@@ -39,6 +39,8 @@
           <select id="filterRole">
             <option value="">Semua Role</option>
             <option value="Admin">Admin</option>
+            <option value="Spv">Spv</option>
+            <option value="Operator">Operator</option>
             <option value="User">User</option>
           </select>
           <select id="filterStatus">
@@ -94,9 +96,11 @@
             <label>Role <span class="req">*</span></label>
             <div class="radio-row" id="roleChips">
               <label class="radio-chip sel-pass" data-val="User"><input type="radio" name="role" value="User" checked>User</label>
+              <label class="radio-chip" data-val="Operator"><input type="radio" name="role" value="Operator">Operator</label>
+              <label class="radio-chip" data-val="Spv"><input type="radio" name="role" value="Spv">Spv</label>
               <label class="radio-chip" data-val="Admin"><input type="radio" name="role" value="Admin">Admin</label>
             </div>
-            <div class="hint">Admin bisa mengelola akun lain lewat halaman ini. User hanya akses menu operasional.</div>
+            <div class="hint">Admin: akses penuh + Kelola Akun. Spv: akses penuh kecuali Kelola Akun (termasuk approve/tolak Verifikasi Quality). Operator: hanya bisa input Verifikasi Quality. User: akses menu operasional standar.</div>
           </div>
         </div>
       </form>

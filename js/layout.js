@@ -46,6 +46,9 @@ function renderSidebarOnce() {
           <div class="name">Quality Assurance System</div>
           <div class="sub">Quality Assurance</div>
         </div>
+        <button class="sidebar-close-btn" id="sidebarCloseBtn" aria-label="Tutup menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </button>
       </div>
       <nav class="sidebar-nav">
         <div class="nav-section-label">Menu Utama</div>
@@ -62,10 +65,14 @@ function renderSidebarOnce() {
         &copy; ${new Date().getFullYear()} Quality Assurance System
       </div>
     </aside>
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
   `;
 
   const topbarHtml = `
     <header class="topbar">
+      <button class="hamburger-btn" id="hamburgerBtn" aria-label="Buka menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+      </button>
       <div>
         <div class="topbar-title" id="topbarTitle"></div>
         <div class="breadcrumb" id="topbarBreadcrumb"></div>
@@ -101,7 +108,36 @@ function renderSidebarOnce() {
     window.location.href = 'login.html';
   });
 
+  // Hamburger: buka/tutup sidebar di layar sempit (mobile/tablet).
+  document.getElementById('hamburgerBtn').addEventListener('click', openSidebar);
+  document.getElementById('sidebarCloseBtn').addEventListener('click', closeSidebar);
+  document.getElementById('sidebarBackdrop').addEventListener('click', closeSidebar);
+
+  // Tutup otomatis begitu salah satu menu di sidebar diklik (biar konten
+  // langsung kelihatan setelah pindah halaman di mobile).
+  document.querySelectorAll('.sidebar-nav .nav-item[data-key]').forEach(a => {
+    a.addEventListener('click', closeSidebar);
+  });
+
+  // Kalau layar diperbesar balik ke ukuran desktop, pastikan sidebar tidak
+  // "nyangkut" dalam kondisi mobile-open.
+  window.addEventListener('resize', () => {
+    if (window.innerWidth > 900) closeSidebar();
+  });
+
   loadCurrentUserChip();
+}
+
+function openSidebar() {
+  document.getElementById('sidebar')?.classList.add('open');
+  document.getElementById('sidebarBackdrop')?.classList.add('show');
+  document.body.classList.add('sidebar-locked');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar')?.classList.remove('open');
+  document.getElementById('sidebarBackdrop')?.classList.remove('show');
+  document.body.classList.remove('sidebar-locked');
 }
 
 // Dipanggil setiap pindah halaman (oleh router.js). Cuma update teks judul
@@ -120,10 +156,10 @@ function applyActiveNav(key) {
   document.querySelectorAll('.sidebar-nav .nav-item[data-key]').forEach(a => {
     a.classList.toggle('active', a.dataset.key === key);
   });
+  if (typeof closeSidebar === 'function') closeSidebar();
 }
 
-async function loadCurrentUserChip() {
-  try {
+async function loadCurrentUserChip() {  try {
     const nameEl = document.getElementById('userName');
     const roleEl = document.getElementById('userRole');
     const avatarEl = document.getElementById('userAvatar');
@@ -133,8 +169,16 @@ async function loadCurrentUserChip() {
     if (profile) {
       const displayName = profile.nama || profile.email?.split('@')[0] || 'User';
       nameEl.textContent = displayName;
-      roleEl.textContent = profile.role === 'Admin' ? 'Administrator' : 'Quality Assurance';
+      const roleLabels = { Admin: 'Administrator', Spv: 'Supervisor', Operator: 'Operator' };
+      roleEl.textContent = roleLabels[profile.role] || 'Quality Assurance';
       avatarEl.textContent = displayName.substring(0, 2).toUpperCase();
+
+      // Operator: cuma boleh akses menu Verifikasi Quality & Report QC (hanya untuk input).
+      if (profile.role === 'Operator') {
+        document.querySelectorAll('.sidebar-nav .nav-item[data-key]').forEach(a => {
+          if (a.dataset.key !== 'verifikasi' && a.dataset.key !== 'report') a.style.display = 'none';
+        });
+      }
 
       if (profile.role === 'Admin') {
         document.getElementById('navAdminLabel').style.display = '';
@@ -144,6 +188,15 @@ async function loadCurrentUserChip() {
             <span>${item.label}</span>
           </a>
         `).join('');
+        document.querySelectorAll('#navAdminItems .nav-item[data-key]').forEach(a => {
+          a.addEventListener('click', closeSidebar);
+        });
+      }
+
+      // Admin & Spv: tampilkan badge jumlah Verifikasi Quality yang "Menunggu Approval"
+      // di sidebar, biar langsung ketauan ada yang perlu di-approve/tolak.
+      if (profile.role === 'Admin' || profile.role === 'Spv') {
+        loadPendingApprovalBadge();
       }
     } else {
       nameEl.textContent = 'Tamu';
@@ -156,5 +209,33 @@ async function loadCurrentUserChip() {
     // Item admin baru saja disisipkan (async) — pastikan status "active"-nya
     // tetap sinkron dengan halaman yang sedang dibuka.
     applyActiveNav(_activeNavKey);
+  }
+}
+
+// Ambil jumlah Verifikasi Quality berstatus "Menunggu Approval" dan tempelkan
+// sebagai badge kecil di sisi kanan nav item "Verifikasi Quality".
+async function loadPendingApprovalBadge() {
+  try {
+    const { count, error } = await supabaseClient
+      .from('verifikasi_quality')
+      .select('id', { count: 'exact', head: true })
+      .eq('approval_status', 'Menunggu Approval');
+    if (error) { console.error(error); return; }
+
+    const navLink = document.querySelector('.sidebar-nav .nav-item[data-key="verifikasi"]');
+    if (!navLink) return;
+
+    let badge = navLink.querySelector('.nav-badge');
+    if (!count) { if (badge) badge.remove(); return; }
+
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'nav-badge';
+      navLink.appendChild(badge);
+    }
+    badge.textContent = count > 99 ? '99+' : String(count);
+    badge.title = `${count} verifikasi menunggu approval`;
+  } catch (e) {
+    console.error(e);
   }
 }

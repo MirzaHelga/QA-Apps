@@ -6,15 +6,18 @@
 (function () {
 
 let allComplaints = [];
-let selectedPhotoFile = null;
+let newPhotoFiles = [];       // File baru yang dipilih, belum diupload
+let existingPhotoUrls = [];   // URL foto yang sudah tersimpan (saat edit)
 let currentDetailId = null;
 
 window.PageControllers = window.PageControllers || {};
 window.PageControllers.complaint = async function initComplaintPage() {
   const session = await requireAuth();
   if (!session) return;
+  if (await blockOperator()) return;
 
-  selectedPhotoFile = null;
+  newPhotoFiles = [];
+  existingPhotoUrls = [];
   currentDetailId = null;
 
   wireForm();
@@ -93,7 +96,12 @@ function renderTable() {
       <td>${escapeHtml(c.kategori || '-')}</td>
       <td>${severityBadge(c.severity)}</td>
       <td>${statusBadge(c.status)}</td>
-      <td>${c.photo_url ? `<img src="${c.photo_url}" class="thumb-btn" onclick="event.stopPropagation(); window.open('${c.photo_url}','_blank')">` : `<div class="thumb-empty">–</div>`}</td>
+      <td>${(c.photo_urls && c.photo_urls.length) ? `
+        <div class="thumb-wrap">
+          <img src="${c.photo_urls[0]}" class="thumb-btn" onclick="event.stopPropagation(); window.open('${c.photo_urls[0]}','_blank')">
+          ${c.photo_urls.length > 1 ? `<span class="thumb-count">+${c.photo_urls.length - 1}</span>` : ''}
+        </div>
+      ` : `<div class="thumb-empty">–</div>`}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="ComplaintPage.viewDetail('${c.id}')">Detail</button></td>
     </tr>
   `).join('');
@@ -136,7 +144,7 @@ function exportComplaints() {
     'Status': c.status,
     'Deskripsi Keluhan': c.deskripsi,
     'Tindakan Perbaikan': c.tindakan_perbaikan || '-',
-    'Foto': c.photo_url || '-',
+    'Foto': (c.photo_urls && c.photo_urls.length) ? `${c.photo_urls.length} foto` : '-',
   }));
 
   exportToExcel(rows, `Complaint_${todayISO()}.xlsx`, 'Complaint');
@@ -157,36 +165,49 @@ function wireForm() {
   const photoInput = document.getElementById('photoInput');
   photoDrop.addEventListener('click', () => photoInput.click());
   photoInput.addEventListener('change', () => {
-    const file = photoInput.files[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { toast('Ukuran foto maksimal 5MB', 'error'); return; }
-    selectedPhotoFile = file;
-    renderPhotoPreview(URL.createObjectURL(file));
+    const files = Array.from(photoInput.files || []);
+    photoInput.value = ''; // biar bisa pilih file yang sama lagi kalau perlu
+    if (!files.length) return;
+
+    const tooBig = files.filter(f => f.size > 5 * 1024 * 1024);
+    if (tooBig.length) toast(`${tooBig.length} foto dilewati karena lebih dari 5MB`, 'error');
+
+    const ok = files.filter(f => f.size <= 5 * 1024 * 1024);
+    newPhotoFiles.push(...ok);
+    renderPhotoPreview();
   });
 
   document.getElementById('saveComplaintBtn').addEventListener('click', saveComplaint);
 }
 
-function renderPhotoPreview(url) {
+function renderPhotoPreview() {
   const wrap = document.getElementById('photoPreviewWrap');
-  wrap.innerHTML = `
+  const existingTiles = existingPhotoUrls.map((url, i) => `
     <div class="photo-preview">
       <img src="${url}">
-      <button type="button" class="rm" onclick="ComplaintPage.removePhoto()">&times;</button>
+      <button type="button" class="rm" onclick="ComplaintPage.removePhoto('existing', ${i})">&times;</button>
     </div>
-  `;
+  `).join('');
+  const newTiles = newPhotoFiles.map((file, i) => `
+    <div class="photo-preview">
+      <img src="${URL.createObjectURL(file)}">
+      <button type="button" class="rm" onclick="ComplaintPage.removePhoto('new', ${i})">&times;</button>
+    </div>
+  `).join('');
+  wrap.innerHTML = existingTiles + newTiles;
 }
 
-function removePhoto() {
-  selectedPhotoFile = null;
-  document.getElementById('photoInput').value = '';
-  document.getElementById('photoPreviewWrap').innerHTML = '';
+function removePhoto(type, idx) {
+  if (type === 'existing') existingPhotoUrls.splice(idx, 1);
+  else newPhotoFiles.splice(idx, 1);
+  renderPhotoPreview();
 }
 
 function openForm(complaint) {
   document.getElementById('complaintForm').reset();
+  newPhotoFiles = [];
+  existingPhotoUrls = [];
   document.getElementById('photoPreviewWrap').innerHTML = '';
-  selectedPhotoFile = null;
 
   document.querySelectorAll('#severityChips .radio-chip').forEach(c => c.classList.remove('sel-low', 'sel-med', 'sel-high', 'sel-critical'));
   document.querySelector('#severityChips .radio-chip[data-val="Medium"]').classList.add('sel-med');
@@ -210,7 +231,10 @@ function openForm(complaint) {
     document.querySelectorAll('#severityChips .radio-chip').forEach(c => c.classList.remove('sel-low', 'sel-med', 'sel-high', 'sel-critical'));
     const chip = document.querySelector(`#severityChips .radio-chip[data-val="${complaint.severity}"]`);
     if (chip) { chip.querySelector('input').checked = true; chip.classList.add(complaint.severity === 'Low' ? 'sel-low' : complaint.severity === 'Medium' ? 'sel-med' : complaint.severity === 'High' ? 'sel-high' : 'sel-critical'); }
-    if (complaint.photo_url) renderPhotoPreview(complaint.photo_url);
+    if (complaint.photo_urls && complaint.photo_urls.length) {
+      existingPhotoUrls = [...complaint.photo_urls];
+      renderPhotoPreview();
+    }
   } else {
     document.getElementById('formModalTitle').textContent = 'Complaint Baru';
     document.getElementById('complaintId').value = '';
@@ -240,13 +264,11 @@ async function saveComplaint() {
   btn.innerHTML = '<span class="spinner"></span> Menyimpan...';
 
   try {
-    let photoUrl = null;
-    const existingPreviewImg = document.querySelector('#photoPreviewWrap img');
-    if (selectedPhotoFile) {
-      photoUrl = await uploadPhoto(selectedPhotoFile, 'complaints');
-    } else if (existingPreviewImg) {
-      photoUrl = existingPreviewImg.src;
+    const uploadedUrls = [];
+    for (const file of newPhotoFiles) {
+      uploadedUrls.push(await uploadPhoto(file, 'complaints'));
     }
+    const photoUrls = [...existingPhotoUrls, ...uploadedUrls];
 
     const payload = {
       tanggal,
@@ -263,7 +285,7 @@ async function saveComplaint() {
       deskripsi,
       tindakan_perbaikan: document.getElementById('fTindakan').value || null,
       status: document.getElementById('fStatus').value,
-      photo_url: photoUrl,
+      photo_urls: photoUrls,
     };
 
     let error;
@@ -313,7 +335,14 @@ function viewDetail(id) {
       <div class="k">Deskripsi</div><div class="v" style="font-weight:400;">${escapeHtml(c.deskripsi)}</div>
     </div>
     ${c.tindakan_perbaikan ? `<div class="detail-item" style="margin-bottom:12px;"><div class="k">Tindakan Perbaikan</div><div class="v" style="font-weight:400;">${escapeHtml(c.tindakan_perbaikan)}</div></div>` : ''}
-    ${c.photo_url ? `<div class="detail-item"><div class="k">Foto</div><img src="${c.photo_url}" class="detail-photo"></div>` : ''}
+    ${(c.photo_urls && c.photo_urls.length) ? `
+      <div class="detail-item">
+        <div class="k">Foto (${c.photo_urls.length})</div>
+        <div class="detail-photo-grid">
+          ${c.photo_urls.map(url => `<img src="${url}" onclick="window.open('${url}','_blank')">`).join('')}
+        </div>
+      </div>
+    ` : ''}
   `;
   openModal('detailModal');
 }

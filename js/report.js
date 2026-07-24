@@ -10,26 +10,41 @@ window.PageControllers = window.PageControllers || {};
 
 let master = null;
 let allReports = [];
-let selectedPhotoFile = null;
+let newPhotoFiles = [];       // File baru yang dipilih, belum diupload
+let existingPhotoUrls = [];   // URL foto yang sudah tersimpan (saat edit)
 let currentDetailId = null;
+let currentProfile = null;
 
 window.PageControllers.report = async function initReportPage() {
   const session = await requireAuth();
   if (!session) return;
 
-  selectedPhotoFile = null;
+  newPhotoFiles = [];
+  existingPhotoUrls = [];
   currentDetailId = null;
 
+  currentProfile = await getCurrentProfile();
   master = await loadMasterData();
   populateFilters();
   wireForm();
   wireFilters();
   wireStaticButtons();
+  applyRoleRestrictions();
   await refreshReports();
 
   document.getElementById('newReportBtn').addEventListener('click', () => openForm(null));
   document.getElementById('exportExcelBtn').addEventListener('click', exportReports);
 };
+
+// Operator: hanya boleh input report baru, tidak boleh export / edit / hapus,
+// dan cuma lihat report yang dia input sendiri (sama seperti Verifikasi Quality).
+function isOperator() { return currentProfile?.role === 'Operator'; }
+
+function applyRoleRestrictions() {
+  if (isOperator()) {
+    document.getElementById('exportExcelBtn').style.display = 'none';
+  }
+}
 
 function wireStaticButtons() {
   document.getElementById('editReportBtn').addEventListener('click', () => {
@@ -107,7 +122,12 @@ function renderTable() {
       <td>${escapeHtml(r.parameter)}</td>
       <td>${resultBadge(r.hasil)}</td>
       <td>${escapeHtml(r.master_karyawan?.nama || '-')}</td>
-      <td>${r.photo_url ? `<img src="${r.photo_url}" class="thumb-btn" onclick="event.stopPropagation(); window.open('${r.photo_url}','_blank')">` : `<div class="thumb-empty">–</div>`}</td>
+      <td>${(r.photo_urls && r.photo_urls.length) ? `
+        <div class="thumb-wrap">
+          <img src="${r.photo_urls[0]}" class="thumb-btn" onclick="event.stopPropagation(); window.open('${r.photo_urls[0]}','_blank')">
+          ${r.photo_urls.length > 1 ? `<span class="thumb-count">+${r.photo_urls.length - 1}</span>` : ''}
+        </div>
+      ` : `<div class="thumb-empty">–</div>`}</td>
       <td><button class="btn btn-ghost btn-sm" onclick="ReportPage.viewDetail('${r.id}')">Detail</button></td>
     </tr>
   `).join('');
@@ -119,6 +139,7 @@ function getFilteredReports() {
   const fArea = document.getElementById('filterArea').value;
 
   return allReports.filter(r => {
+    if (isOperator() && r.created_by !== currentProfile.id) return false;
     if (fHasil && r.hasil !== fHasil) return false;
     if (fArea && r.area_id !== fArea) return false;
     if (q) {
@@ -145,7 +166,7 @@ function exportReports() {
     'Hasil': r.hasil,
     'Inspector': r.master_karyawan?.nama || '-',
     'Catatan': r.catatan || '-',
-    'Foto': r.photo_url || '-',
+    'Foto': (r.photo_urls && r.photo_urls.length) ? `${r.photo_urls.length} foto` : '-',
   }));
 
   exportToExcel(rows, `Report_QC_${todayISO()}.xlsx`, 'Report QC');
@@ -165,36 +186,49 @@ function wireForm() {
   const photoInput = document.getElementById('photoInput');
   photoDrop.addEventListener('click', () => photoInput.click());
   photoInput.addEventListener('change', () => {
-    const file = photoInput.files[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { toast('Ukuran foto maksimal 5MB', 'error'); return; }
-    selectedPhotoFile = file;
-    renderPhotoPreview(URL.createObjectURL(file));
+    const files = Array.from(photoInput.files || []);
+    photoInput.value = '';
+    if (!files.length) return;
+
+    const tooBig = files.filter(f => f.size > 5 * 1024 * 1024);
+    if (tooBig.length) toast(`${tooBig.length} foto dilewati karena lebih dari 5MB`, 'error');
+
+    const ok = files.filter(f => f.size <= 5 * 1024 * 1024);
+    newPhotoFiles.push(...ok);
+    renderPhotoPreview();
   });
 
   document.getElementById('saveReportBtn').addEventListener('click', saveReport);
 }
 
-function renderPhotoPreview(url) {
+function renderPhotoPreview() {
   const wrap = document.getElementById('photoPreviewWrap');
-  wrap.innerHTML = `
+  const existingTiles = existingPhotoUrls.map((url, i) => `
     <div class="photo-preview">
       <img src="${url}">
-      <button type="button" class="rm" onclick="ReportPage.removePhoto()">&times;</button>
+      <button type="button" class="rm" onclick="ReportPage.removePhoto('existing', ${i})">&times;</button>
     </div>
-  `;
+  `).join('');
+  const newTiles = newPhotoFiles.map((file, i) => `
+    <div class="photo-preview">
+      <img src="${URL.createObjectURL(file)}">
+      <button type="button" class="rm" onclick="ReportPage.removePhoto('new', ${i})">&times;</button>
+    </div>
+  `).join('');
+  wrap.innerHTML = existingTiles + newTiles;
 }
 
-function removePhoto() {
-  selectedPhotoFile = null;
-  document.getElementById('photoInput').value = '';
-  document.getElementById('photoPreviewWrap').innerHTML = '';
+function removePhoto(type, idx) {
+  if (type === 'existing') existingPhotoUrls.splice(idx, 1);
+  else newPhotoFiles.splice(idx, 1);
+  renderPhotoPreview();
 }
 
 function openForm(report) {
   document.getElementById('reportForm').reset();
+  newPhotoFiles = [];
+  existingPhotoUrls = [];
   document.getElementById('photoPreviewWrap').innerHTML = '';
-  selectedPhotoFile = null;
   document.getElementById('fMesin').innerHTML = '<option value="">-- Pilih Mesin --</option>';
   document.getElementById('fEquipment').innerHTML = '<option value="">-- Pilih Equipment (opsional) --</option>';
 
@@ -221,7 +255,10 @@ function openForm(report) {
     document.querySelectorAll('#hasilChips .radio-chip').forEach(c => c.classList.remove('sel-pass', 'sel-fail'));
     const chip = document.querySelector(`#hasilChips .radio-chip[data-val="${report.hasil}"]`);
     if (chip) { chip.querySelector('input').checked = true; chip.classList.add(report.hasil === 'Pass' ? 'sel-pass' : 'sel-fail'); }
-    if (report.photo_url) renderPhotoPreview(report.photo_url);
+    if (report.photo_urls && report.photo_urls.length) {
+      existingPhotoUrls = [...report.photo_urls];
+      renderPhotoPreview();
+    }
   } else {
     document.getElementById('formModalTitle').textContent = 'Report QC Baru';
     document.getElementById('reportId').value = '';
@@ -248,13 +285,11 @@ async function saveReport() {
   btn.innerHTML = '<span class="spinner"></span> Menyimpan...';
 
   try {
-    let photoUrl = null;
-    const existingPreviewImg = document.querySelector('#photoPreviewWrap img');
-    if (selectedPhotoFile) {
-      photoUrl = await uploadPhoto(selectedPhotoFile, 'qc-reports');
-    } else if (existingPreviewImg) {
-      photoUrl = existingPreviewImg.src;
+    const uploadedUrls = [];
+    for (const file of newPhotoFiles) {
+      uploadedUrls.push(await uploadPhoto(file, 'qc-reports'));
     }
+    const photoUrls = [...existingPhotoUrls, ...uploadedUrls];
 
     const payload = {
       tanggal,
@@ -268,8 +303,9 @@ async function saveReport() {
       hasil_aktual: document.getElementById('fHasilAktual').value || null,
       hasil: hasilInput.value,
       catatan: document.getElementById('fCatatan').value || null,
-      photo_url: photoUrl,
+      photo_urls: photoUrls,
     };
+    if (!id) payload.created_by = currentProfile?.id || null;
 
     let error;
     if (id) {
@@ -314,8 +350,21 @@ function viewDetail(id) {
       <div class="k">Parameter</div><div class="v" style="font-weight:400;">${escapeHtml(r.parameter)}</div>
     </div>
     ${r.catatan ? `<div class="detail-item" style="margin-bottom:12px;"><div class="k">Catatan</div><div class="v" style="font-weight:400;">${escapeHtml(r.catatan)}</div></div>` : ''}
-    ${r.photo_url ? `<div class="detail-item"><div class="k">Foto</div><img src="${r.photo_url}" class="detail-photo"></div>` : ''}
+    ${(r.photo_urls && r.photo_urls.length) ? `
+      <div class="detail-item">
+        <div class="k">Foto (${r.photo_urls.length})</div>
+        <div class="detail-photo-grid">
+          ${r.photo_urls.map(url => `<img src="${url}" onclick="window.open('${url}','_blank')">`).join('')}
+        </div>
+      </div>
+    ` : ''}
   `;
+
+  const editBtn = document.getElementById('editReportBtn');
+  const deleteBtn = document.getElementById('deleteReportBtn');
+  editBtn.style.display = isOperator() ? 'none' : '';
+  deleteBtn.style.display = isOperator() ? 'none' : '';
+
   openModal('detailModal');
 }
 

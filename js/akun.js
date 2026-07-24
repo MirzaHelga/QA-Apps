@@ -94,8 +94,11 @@ async function refreshAkun() {
   }
 }
 
+const ROLE_BADGE_CLASS = { Admin: 'badge-rejected', Spv: 'badge-progress', Operator: 'badge-open', User: 'badge-closed' };
+const ROLE_CHIP_CLASS = { Admin: 'sel-fail', Spv: 'sel-spv', Operator: 'sel-med', User: 'sel-pass' };
+
 function roleBadge(role) {
-  return `<span class="badge ${role === 'Admin' ? 'badge-progress' : 'badge-closed'}">${role}</span>`;
+  return `<span class="badge ${ROLE_BADGE_CLASS[role] || 'badge-closed'}">${role}</span>`;
 }
 
 function statusBadge(banned) {
@@ -158,19 +161,19 @@ function wireFilters() {
 function wireForm() {
   document.querySelectorAll('#roleChips .radio-chip').forEach(chip => {
     chip.addEventListener('click', () => {
-      document.querySelectorAll('#roleChips .radio-chip').forEach(c => c.classList.remove('sel-pass', 'sel-fail'));
-      chip.classList.add(chip.dataset.val === 'Admin' ? 'sel-fail' : 'sel-pass');
+      document.querySelectorAll('#roleChips .radio-chip').forEach(c => c.classList.remove('sel-pass', 'sel-fail', 'sel-spv', 'sel-med'));
+      chip.classList.add(ROLE_CHIP_CLASS[chip.dataset.val] || 'sel-pass');
     });
   });
   document.getElementById('saveAkunBtn').addEventListener('click', saveAkun);
 }
 
 function setRoleChip(role) {
-  document.querySelectorAll('#roleChips .radio-chip').forEach(c => c.classList.remove('sel-pass', 'sel-fail'));
+  document.querySelectorAll('#roleChips .radio-chip').forEach(c => c.classList.remove('sel-pass', 'sel-fail', 'sel-spv', 'sel-med'));
   const chip = document.querySelector(`#roleChips .radio-chip[data-val="${role}"]`);
   if (chip) {
     chip.querySelector('input').checked = true;
-    chip.classList.add(role === 'Admin' ? 'sel-fail' : 'sel-pass');
+    chip.classList.add(ROLE_CHIP_CLASS[role] || 'sel-pass');
   }
 }
 

@@ -16,6 +16,7 @@ window.PageControllers = window.PageControllers || {};
 window.PageControllers.dashboard = async function initDashboardPage() {
   const session = await requireAuth();
   if (!session) return;
+  if (await blockOperator()) return;
 
   await loadDashboard();
 };

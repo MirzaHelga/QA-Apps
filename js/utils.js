@@ -38,6 +38,17 @@ async function requireAdmin() {
   return profile;
 }
 
+// Guard: role Operator cuma boleh akses halaman Verifikasi Quality & Report QC (buat input).
+// Panggil di halaman selain itu (index/complaint/akun) setelah requireAuth().
+async function blockOperator() {
+  const profile = await getCurrentProfile();
+  if (profile && profile.role === 'Operator') {
+    window.location.href = 'verifikasi.html';
+    return true;
+  }
+  return false;
+}
+
 // ---------- Toast ----------
 function ensureToastWrap() {
   let wrap = document.querySelector('.toast-wrap');
@@ -158,11 +169,73 @@ function wireCascadingSelects({ areaSel, mesinSel, equipSel, master }) {
   equipSel.disabled = true;
 }
 
+// ---------- Kompres foto (target ~100-300KB) sebelum upload ----------
+function _fileToImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
+    img.src = url;
+  });
+}
+
+function _canvasToBlob(canvas, quality) {
+  return new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+}
+
+// Resize (maks 1600px sisi terpanjang) + turunkan quality JPEG bertahap
+// sampai ukurannya masuk target 100-300KB (atau mentok quality minimum).
+async function compressImage(file, { targetMinKB = 100, targetMaxKB = 300, maxDim = 1600 } = {}) {
+  if (!file.type.startsWith('image/')) return file;
+  // GIF dilewatin (animasi bisa rusak kalau di-canvas-in)
+  if (file.type === 'image/gif') return file;
+
+  try {
+    const img = await _fileToImage(file);
+    let { width, height } = img;
+    if (Math.max(width, height) > maxDim) {
+      const scale = maxDim / Math.max(width, height);
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+
+    let quality = 0.85;
+    let blob = await _canvasToBlob(canvas, quality);
+    // Turunin quality kalau masih di atas target maks
+    while (blob && blob.size > targetMaxKB * 1024 && quality > 0.35) {
+      quality -= 0.1;
+      blob = await _canvasToBlob(canvas, quality);
+    }
+    // Kalau masih kegedean di quality minimum, perkecil dimensinya juga
+    let dim = maxDim;
+    while (blob && blob.size > targetMaxKB * 1024 && dim > 480) {
+      dim = Math.round(dim * 0.85);
+      const scale = dim / Math.max(width, height);
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      blob = await _canvasToBlob(canvas, quality);
+    }
+
+    if (!blob || blob.size >= file.size) return file; // gagal / gak lebih kecil, pakai file asli
+    const newName = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+    return new File([blob], newName, { type: 'image/jpeg' });
+  } catch (e) {
+    console.error('Gagal kompres foto, pakai file asli:', e);
+    return file;
+  }
+}
+
 // ---------- Upload foto ke Supabase Storage ----------
 async function uploadPhoto(file, folder) {
-  const ext = file.name.split('.').pop();
+  const compressed = await compressImage(file);
+  const ext = compressed.name.split('.').pop();
   const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-  const { data, error } = await supabaseClient.storage.from(PHOTO_BUCKET).upload(fileName, file, {
+  const { data, error } = await supabaseClient.storage.from(PHOTO_BUCKET).upload(fileName, compressed, {
     cacheControl: '3600',
     upsert: false,
   });

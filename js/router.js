@@ -35,9 +35,32 @@ const ROUTES = {
   'akun.html': {
     active: 'akun', title: 'Kelola Akun',
     breadcrumb: 'Quality Assurance System / Kelola Akun',
-    script: 'js/akun.js', init: 'akun',
+    script: 'js/akun.js', init: 'akun', adminOnly: true,
   },
 };
+
+/* ---------------- Auth guard ----------------
+   Dipanggil PALING AWAL, sebelum sidebar/konten apa pun dirender,
+   supaya halaman terproteksi tidak sempat "kelihatan" sebelum
+   redirect ke login.html kalau sesi belum ada / bukan admin. */
+async function guardRoute(route) {
+  const session = await requireAuth(); // requireAuth() sudah redirect ke login.html kalau kosong
+  if (!session) return false;
+
+  if (route.adminOnly) {
+    const profile = await getCurrentProfile();
+    if (!profile || profile.role !== 'Admin') {
+      window.location.href = 'index.html';
+      return false;
+    }
+  }
+  return true;
+}
+
+function revealApp() {
+  const shell = document.querySelector('.app-shell');
+  if (shell) shell.style.visibility = 'visible';
+}
 
 window.PageControllers = window.PageControllers || {};
 
@@ -96,6 +119,11 @@ function playContentFade() {
 async function navigateTo(path, { push = true } = {}) {
   const route = ROUTES[path];
   if (!route) { window.location.href = path; return; }
+
+  // Guard ulang tiap pindah halaman (mis. sesi kadaluarsa, atau role
+  // berubah) — penting khusus untuk rute adminOnly seperti akun.html.
+  const allowed = await guardRoute(route);
+  if (!allowed) return;
 
   startProgress();
   try {
@@ -158,11 +186,19 @@ window.addEventListener('popstate', (e) => {
 
 /* ---------------- Boot awal ---------------- */
 async function bootRouter() {
-  renderSidebarOnce();
-
   const path = getCurrentPath();
   const route = ROUTES[path];
   if (!route) return; // halaman di luar daftar route (harusnya tidak terjadi)
+
+  // Cek sesi (& role kalau adminOnly) SEBELUM sidebar/konten dirender.
+  // .app-shell disembunyikan lewat inline style di HTML; kalau guard
+  // gagal, browser sudah keburu redirect ke login.html/index.html
+  // duluan tanpa sempat menampilkan apa pun.
+  const allowed = await guardRoute(route);
+  if (!allowed) return;
+
+  renderSidebarOnce();
+  revealApp();
 
   _currentPath = path;
   updateTopbar(route.title, route.breadcrumb);

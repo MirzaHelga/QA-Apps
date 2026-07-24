@@ -17,6 +17,11 @@ function json(body: unknown, status = 200) {
   });
 }
 
+const VALID_ROLES = ['Admin', 'Spv', 'Operator', 'User'];
+function sanitizeRole(role: unknown): string {
+  return VALID_ROLES.includes(role as string) ? (role as string) : 'User';
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -83,7 +88,7 @@ Deno.serve(async (req) => {
       if (!email || !password || password.length < 6) {
         return json({ error: 'Email wajib diisi & password minimal 6 karakter.' }, 400);
       }
-      const finalRole = role === 'Admin' ? 'Admin' : 'User';
+      const finalRole = sanitizeRole(role);
 
       const { data: created, error: createErr } = await admin.auth.admin.createUser({
         email,
@@ -125,7 +130,7 @@ Deno.serve(async (req) => {
 
       const profileUpdate: Record<string, unknown> = {};
       if (nama !== undefined) profileUpdate.nama = nama;
-      if (role !== undefined) profileUpdate.role = role === 'Admin' ? 'Admin' : 'User';
+      if (role !== undefined) profileUpdate.role = sanitizeRole(role);
       if (email !== undefined) profileUpdate.email = email;
       if (Object.keys(profileUpdate).length) {
         const { error: profUpdErr } = await admin.from('profiles').update(profileUpdate).eq('id', id);
