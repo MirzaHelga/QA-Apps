@@ -248,20 +248,28 @@ button { font-family: inherit; }
 
 /* ---------- Topbar ---------- */
 .topbar {
-  height: var(--topbar-h);
+  min-height: var(--topbar-h);
   background: var(--white);
   border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 0 22px;
+  padding: 10px 22px;
   position: sticky;
   top: 0;
   z-index: 20;
 }
 
-.topbar-title { font-size: 17px; font-weight: 700; color: var(--ink-900); }
-.topbar-title .breadcrumb { font-size: 12px; font-weight: 500; color: var(--ink-500); }
+.topbar-titles { min-width: 0; flex: 1; }
+
+.topbar-title {
+  font-size: 17px; font-weight: 700; color: var(--ink-900);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.breadcrumb {
+  font-size: 12px; font-weight: 500; color: var(--ink-500);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 
 .topbar-right {
   margin-left: auto;
@@ -833,8 +841,9 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 
   body.sidebar-locked { overflow: hidden; }
 
-  .topbar { padding: 0 14px; gap: 10px; }
+  .topbar { padding: 8px 14px; gap: 10px; }
   .topbar-title { font-size: 15.5px; }
+  .breadcrumb { display: none; }
   .today-pill { display: none; }
   .user-chip .u-name, .user-chip .u-role { display: none; }
   .user-chip { padding: 5px; border: none; }
@@ -843,7 +852,7 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 
   .page-head { flex-direction: column; align-items: stretch; gap: 12px; }
   .page-head > div:last-child { display: flex; flex-wrap: wrap; gap: 8px; }
-  .page-head > div:last-child .btn { flex: 1; min-width: 0; }
+  .page-head > div:last-child .btn { flex: 0 1 auto; }
 
   .filters-bar { flex-direction: column; align-items: stretch; }
   .filters-bar .search-box { min-width: 0; }
