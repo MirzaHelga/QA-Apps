@@ -647,7 +647,7 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
   text-align: center;
 }
 .login-card .logo-box {
-  width: 76px; height: 76px; margin: 0 auto 16px;
+  width: 260px; height: 128px; margin: 0 auto 16px;
   border-radius: 18px;
   background: var(--white);
   padding: 6px;
