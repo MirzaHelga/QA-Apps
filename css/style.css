@@ -584,7 +584,7 @@ table.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .modal {
   background: var(--white);
   border-radius: 16px;
-  width: min(860px, 96vw);
+  width: min(1400px, 94vw);
   max-height: 92vh;
   overflow-y: auto;
   overflow-x: hidden;
